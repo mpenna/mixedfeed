@@ -2,14 +2,12 @@
     "name": "patrickgalbraith/mixedfeed",
     "description": "A PHP library to get social networks feeds and merge them",
     "license": "MIT",
-    "authors": [
-        {
-            "name": "Ambroise Maupate",
-            "email": "ambroise@rezo-zero.com",
-            "homepage": "http://www.rezo-zero.com",
-            "role": "Lead developer"
-        }
-    ],
+    "authors": [{
+        "name": "Ambroise Maupate",
+        "email": "ambroise@rezo-zero.com",
+        "homepage": "http://www.rezo-zero.com",
+        "role": "Lead developer"
+    }],
     "keywords": [
         "feed",
         "social",
@@ -21,7 +19,12 @@
         "abraham/twitteroauth": "^0.7.2",
         "guzzlehttp/guzzle": "^6.2"
     },
+    "replace": {
+        "patrickgalbraith/mixedfeed": "1.*"
+    },
     "autoload": {
-        "psr-4": {"RZ\\MixedFeed\\": "src/"}
+        "psr-4": {
+            "RZ\\MixedFeed\\": "src/"
+        }
     }
 }
