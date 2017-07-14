@@ -20,47 +20,56 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @file PinterestBoardFeed.php
+ * @file FacebookUserFeed.php
  * @author Ambroise Maupate
  */
 namespace RZ\MixedFeed;
 
-use Illuminate\Cache\Repository;
+// use Illuminate\Cache\Repository;
+use Illuminate\Contracts\Cache\Repository;
 use GuzzleHttp\Exception\ClientException;
 use RZ\MixedFeed\Exception\CredentialsException;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
- * Get a Pinterest public board pins feed.
+ * Get a Facebook user timeline feed using an Access Token.
  *
- * https://developers.pinterest.com/tools/access_token/
+ * https://developers.facebook.com/docs/facebook-login/access-tokens
  */
-class PinterestBoardFeed extends AbstractFeedProvider
+class FacebookUserFeed extends AbstractFeedProvider
 {
-    const TIME_KEY = 'created_at';
-
-    protected $boardId;
+    const TIME_KEY = 'created_time';
+    
+    protected $userId;
     protected $accessToken;
+    protected $fields;
+    protected $since = null;
+    protected $until = null;
 
     /**
      *
-     * @param string             $boardId
-     * @param string             $accessToken
+     * @param string             $userId
+     * @param string             $accessToken Your App Token
      * @param CacheProvider|null $cacheProvider
+     * @param array              $fields
      */
     public function __construct(
-        $boardId,
+        $userId,
         $accessToken,
-        Repository $cacheProvider = null
+        Repository $cacheProvider = null,
+        $fields = []
     ) {
-        $this->boardId = $boardId;
+        $this->userId = $userId;
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
+
+        $this->fields = ['link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
+        $this->fields = array_unique(array_merge($this->fields, $fields));
 
         if (null === $this->accessToken ||
             false === $this->accessToken ||
             empty($this->accessToken)) {
-            throw new CredentialsException("PinterestBoardFeed needs a valid access token.", 1);
+            throw new CredentialsException("FacebookUserFeed needs a valid user access token.", 1);
         }
     }
 
@@ -77,25 +86,37 @@ class PinterestBoardFeed extends AbstractFeedProvider
             
             // http client
             $client = new \GuzzleHttp\Client();
-
+            
             // query parameters
             $params = [
                 'query' => [
                     'access_token' => $this->accessToken,
                     'limit' => $count,
-                    'fields' => 'id,color,created_at,creator,media,image[original],note,link,url',
+                    'fields' => implode(',', $this->fields),
                 ],
             ];
+
+            // filter by date range: since
+            if (null !== $this->since &&
+                $this->since instanceof \Datetime) {
+                $params['query']['since'] = $this->since->getTimestamp();
+            }
             
+            // filter by date range: until
+            if (null !== $this->until &&
+                $this->until instanceof \Datetime) {
+                $params['query']['until'] = $this->until->getTimestamp();
+            }
+
             // call the api and get response
-            $response = $client->get('https://api.pinterest.com/v1/boards/' . $this->boardId . '/pins/', $params);
+            $response = $client->get('https://graph.facebook.com/' . $this->userId . '/posts', $params);
 
             // decode body
             $body = json_decode($response->getBody());
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $body->data);
-
+            
             return $body->data;
         } catch (ClientException $e) {
             return [
@@ -109,7 +130,7 @@ class PinterestBoardFeed extends AbstractFeedProvider
      */
     public function getFeedPlatform()
     {
-        return 'pinterest_board';
+        return 'facebook_user';
     }
 
     /**
@@ -143,7 +164,55 @@ class PinterestBoardFeed extends AbstractFeedProvider
      */
     public function getCanonicalMessage($item)
     {
-        return $item->note;
+        return isset($item->message) ? $item->message : '';
+    }
+
+    /**
+     * Gets the value of since.
+     *
+     * @return \Datetime
+     */
+    public function getSince()
+    {
+        return $this->since;
+    }
+
+    /**
+     * Sets the value of since.
+     *
+     * @param \Datetime $since the since
+     *
+     * @return self
+     */
+    public function setSince(\Datetime $since)
+    {
+        $this->since = $since;
+
+        return $this;
+    }
+
+    /**
+     * Gets the value of until.
+     *
+     * @return \Datetime
+     */
+    public function getUntil()
+    {
+        return $this->until;
+    }
+
+    /**
+     * Sets the value of until.
+     *
+     * @param \Datetime $until the until
+     *
+     * @return self
+     */
+    public function setUntil(\Datetime $until)
+    {
+        $this->until = $until;
+
+        return $this;
     }
 
     /**
@@ -156,7 +225,7 @@ class PinterestBoardFeed extends AbstractFeedProvider
     private function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
-        $board = $this->boardId;
-        return "{$platform}:{$board}:{$count}";
+        $user = $this->userId;
+        return "{$platform}:{$user}:{$count}";
     }
 }

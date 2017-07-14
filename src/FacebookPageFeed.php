@@ -25,10 +25,10 @@
  */
 namespace RZ\MixedFeed;
 
-use Doctrine\Common\Cache\CacheProvider;
+use Illuminate\Cache\Repository;
 use GuzzleHttp\Exception\ClientException;
-use RZ\MixedFeed\AbstractFeedProvider;
 use RZ\MixedFeed\Exception\CredentialsException;
+use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
  * Get a Facebook public page timeline feed using an App Token.
@@ -37,15 +37,13 @@ use RZ\MixedFeed\Exception\CredentialsException;
  */
 class FacebookPageFeed extends AbstractFeedProvider
 {
+    const TIME_KEY = 'created_time';
+
     protected $pageId;
     protected $accessToken;
-    protected $cacheProvider;
-    protected $cacheKey;
     protected $fields;
     protected $since = null;
     protected $until = null;
-
-    protected static $timeKey = 'created_time';
 
     /**
      *
@@ -57,13 +55,12 @@ class FacebookPageFeed extends AbstractFeedProvider
     public function __construct(
         $pageId,
         $accessToken,
-        CacheProvider $cacheProvider = null,
+        Repository $cacheProvider = null,
         $fields = []
     ) {
         $this->pageId = $pageId;
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
-        $this->cacheKey = $this->getFeedPlatform() . $this->pageId;
 
         $this->fields = ['link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
         $this->fields = array_unique(array_merge($this->fields, $fields));
@@ -78,14 +75,18 @@ class FacebookPageFeed extends AbstractFeedProvider
     protected function getFeed($count = 5)
     {
         try {
-            $countKey = $this->cacheKey . $count;
+            // cache key
+            $cacheKey = $this->buildCacheKey($count);
 
-            if (null !== $this->cacheProvider &&
-                $this->cacheProvider->contains($countKey)) {
-                return $this->cacheProvider->fetch($countKey);
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
             }
 
+            // http client
             $client = new \GuzzleHttp\Client();
+
+            // query parameters
             $params = [
                 'query' => [
                     'access_token' => $this->accessToken,
@@ -93,28 +94,27 @@ class FacebookPageFeed extends AbstractFeedProvider
                     'fields' => implode(',', $this->fields),
                 ],
             ];
-            /*
-             * Filter by date range
-             */
+
+            // filter by date range: since
             if (null !== $this->since &&
                 $this->since instanceof \Datetime) {
                 $params['query']['since'] = $this->since->getTimestamp();
             }
+            
+            // filter by date range: until
             if (null !== $this->until &&
                 $this->until instanceof \Datetime) {
                 $params['query']['until'] = $this->until->getTimestamp();
             }
 
+            // call the api and get response
             $response = $client->get('https://graph.facebook.com/' . $this->pageId . '/posts', $params);
-            $body = json_decode($response->getBody());
 
-            if (null !== $this->cacheProvider) {
-                $this->cacheProvider->save(
-                    $countKey,
-                    $body->data,
-                    $this->ttl
-                );
-            }
+            // decode body
+            $body = json_decode($response->getBody());
+            
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $body->data);
 
             return $body->data;
         } catch (ClientException $e) {
@@ -122,24 +122,8 @@ class FacebookPageFeed extends AbstractFeedProvider
                 'error' => $e->getMessage(),
             ];
         }
-    }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getDateTime($item)
-    {
-        $date = new \DateTime();
-        $date->setTimestamp(strtotime($item->created_time));
-        return $date;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalMessage($item)
-    {
-        return isset($item->message) ? $item->message : '';
+        return $data;
     }
 
     /**
@@ -148,6 +132,16 @@ class FacebookPageFeed extends AbstractFeedProvider
     public function getFeedPlatform()
     {
         return 'facebook_page';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getDateTime($item)
+    {
+        $date = new \DateTime();
+        $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
+        return $date;
     }
 
     /**
@@ -164,6 +158,14 @@ class FacebookPageFeed extends AbstractFeedProvider
     public function getErrors($feed)
     {
         return $feed['error'];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalMessage($item)
+    {
+        return isset($item->message) ? $item->message : '';
     }
 
     /**
@@ -212,5 +214,19 @@ class FacebookPageFeed extends AbstractFeedProvider
         $this->until = $until;
 
         return $this;
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    private function buildCacheKey($count)
+    {
+        $platform = $this->getFeedPlatform();
+        $page = $this->pageId;
+        return "{$platform}:{$page}:{$count}";
     }
 }

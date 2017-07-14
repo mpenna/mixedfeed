@@ -19,7 +19,6 @@
     ],
     "require": {
         "abraham/twitteroauth": "^0.7.2",
-        "doctrine/cache": "^1.6",
         "guzzlehttp/guzzle": "^6.2"
     },
     "autoload": {

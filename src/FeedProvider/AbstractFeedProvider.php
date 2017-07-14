@@ -23,10 +23,10 @@
  * @file AbstractFeedProvider.php
  * @author Ambroise Maupate
  */
-namespace RZ\MixedFeed;
+namespace RZ\MixedFeed\FeedProvider;
 
-use RZ\MixedFeed\Exception\FeedProviderErrorException;
 use RZ\MixedFeed\FeedProviderInterface;
+use RZ\MixedFeed\Exception\FeedProviderErrorException;
 
 /**
  * Implements a basic feed provider with
@@ -35,6 +35,7 @@ use RZ\MixedFeed\FeedProviderInterface;
 abstract class AbstractFeedProvider implements FeedProviderInterface
 {
     protected $ttl = 7200;
+    protected $cacheProvider;
 
     /**
      * {@inheritdoc}
@@ -44,22 +45,52 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
         $list = $this->getFeed($count);
 
         if ($this->isValid($list)) {
-            /*
-             * Need to inject feed item platform, normalizedDate and canonicalMessage
-             * to be able to merge them with other types
-             */
+            // inject feedItemPlatform, normalizedDate and canonicalMessage
+            // to be able to merge them with other types
             foreach ($list as $index => $item) {
                 if (is_object($item)) {
+                    \Log::info('AbstractFeedProvider->getItems() isValid and item is object', [$item]);
                     $item->feedItemPlatform = $this->getFeedPlatform();
                     $item->normalizedDate = $this->getDateTime($item);
                     $item->canonicalMessage = $this->getCanonicalMessage($item);
                 } else {
+                    \Log::info('AbstractFeedProvider->getItems() isValid but item is NOT object', [$item]);
                     unset($list[$index]);
                 }
             }
             return $list;
         } else {
             throw new FeedProviderErrorException($this->getFeedPlatform(), $this->getErrors($list));
+        }
+    }
+
+    /**
+     * Try to fetch data from the cache.
+     *
+     * @return mixed
+     */
+    public function fetchFromCache($cacheKey)
+    {
+        // do we have this data in the cache ?
+        if (null !== $this->cacheProvider &&
+            $this->cacheProvider->has($cacheKey)) {
+            return $this->cacheProvider->get($cacheKey);
+        }
+        return null;
+    }
+
+    /**
+     * Save data to the cache.
+     */
+    public function saveToCache($cacheKey, $data)
+    {
+        // should we put this data in the cache ?
+        if (null !== $this->cacheProvider) {
+            $this->cacheProvider->put(
+                $cacheKey,
+                $data,
+                $this->ttl
+            );
         }
     }
 

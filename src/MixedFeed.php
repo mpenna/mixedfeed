@@ -25,9 +25,10 @@
  */
 namespace RZ\MixedFeed;
 
-use RZ\MixedFeed\AbstractFeedProvider;
-use RZ\MixedFeed\Exception\FeedProviderErrorException;
+use Illuminate\Cache\Repository;
 use RZ\MixedFeed\MockObject\ErroredFeedItem;
+use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
+use RZ\MixedFeed\Exception\FeedProviderErrorException;
 
 /**
  * Combine feed providers and sort them antechronological.
@@ -42,15 +43,26 @@ class MixedFeed extends AbstractFeedProvider
      *
      * @param array $providers
      */
-    public function __construct(array $providers = [])
-    {
+    public function __construct(
+        array $providers = [],
+        Repository $cacheProvider = null
+    ) {
         foreach ($providers as $provider) {
             if (!($provider instanceof FeedProviderInterface)) {
-                throw new \RuntimeException("Provider must implements FeedProviderInterface interface.", 1);
+                throw new \RuntimeException("Provider must implement FeedProviderInterface interface.", 1);
             }
         }
 
         $this->providers = $providers;
+        $this->cacheProvider = $cacheProvider;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getFeedPlatform()
+    {
+        return 'mixed';
     }
 
     /**
@@ -59,7 +71,18 @@ class MixedFeed extends AbstractFeedProvider
     public function getItems($count = 5)
     {
         $list = [];
+        
         if (count($this->providers) > 0) {
+
+            // cache key
+            $cacheKey = $this->buildCacheKey('user123', $count);
+
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                \Log::info('MixedFeed : fetched from cache', [$data]);
+                return $data;
+            }
+
             $perProviderCount = floor($count / count($this->providers));
 
             foreach ($this->providers as $provider) {
@@ -82,18 +105,46 @@ class MixedFeed extends AbstractFeedProvider
                 // DESC sorting
                 return ($aDT > $bDT) ? -1 : 1;
             });
+
+            \Log::info('MixedFeed : fetched from apis', [$list]);
+
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $list);
         }
 
         return $list;
     }
+    // public function getItems($count = 5)
+    // {
+    //     $list = [];
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getFeedPlatform()
-    {
-        return 'mixed';
-    }
+    //     if (count($this->providers) > 0) {
+    //         $perProviderCount = floor($count / count($this->providers));
+
+    //         foreach ($this->providers as $provider) {
+    //             try {
+    //                 $list = array_merge($list, $provider->getItems($perProviderCount));
+    //             } catch (FeedProviderErrorException $e) {
+    //                 $list = array_merge($list, [
+    //                     new ErroredFeedItem($e->getMessage(), $provider->getFeedPlatform()),
+    //                 ]);
+    //             }
+    //         }
+
+    //         usort($list, function (\stdClass $a, \stdClass $b) {
+    //             $aDT = $a->normalizedDate;
+    //             $bDT = $b->normalizedDate;
+
+    //             if ($aDT == $bDT) {
+    //                 return 0;
+    //             }
+    //             // DESC sorting
+    //             return ($aDT > $bDT) ? -1 : 1;
+    //         });
+    //     }
+
+    //     return $list;
+    // }
 
     /**
      * {@inheritdoc}
@@ -101,14 +152,6 @@ class MixedFeed extends AbstractFeedProvider
     public function getDateTime($item)
     {
         return new \DateTime('now');
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalMessage($item)
-    {
-        return "";
     }
 
     /**
@@ -125,5 +168,26 @@ class MixedFeed extends AbstractFeedProvider
     public function getErrors($feed)
     {
         return '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalMessage($item)
+    {
+        return "";
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    private function buildCacheKey($user, $count)
+    {
+        $platform = $this->getFeedPlatform();
+        return "{$platform}:{$user}:{$count}";
     }
 }

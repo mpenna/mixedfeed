@@ -33,6 +33,7 @@ interface FeedProviderInterface
      * @return string
      */
     public function getFeedPlatform();
+
     /**
      *
      * Get item method must return the direct

@@ -25,28 +25,35 @@
  */
 namespace RZ\MixedFeed;
 
-use Doctrine\Common\Cache\CacheProvider;
+use Illuminate\Cache\Repository;
 use GuzzleHttp\Exception\ClientException;
-use RZ\MixedFeed\AbstractFeedProvider;
 use RZ\MixedFeed\Exception\CredentialsException;
+use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
  * Get an Instagram user feed.
  */
 class InstagramFeed extends AbstractFeedProvider
 {
+    const TIME_KEY = 'created_time';
+
     protected $userId;
     protected $accessToken;
-    protected $cacheProvider;
-    protected $cacheKey;
-    protected static $timeKey = 'created_time';
 
-    public function __construct($userId, $accessToken, CacheProvider $cacheProvider = null)
-    {
+    /**
+     *
+     * @param string             $userId
+     * @param string             $accessToken
+     * @param CacheProvider|null $cacheProvider
+     */
+    public function __construct(
+        $userId, 
+        $accessToken, 
+        Repository $cacheProvider = null
+    ) {
         $this->userId = $userId;
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
-        $this->cacheKey = $this->getFeedPlatform() . $this->userId;
 
         if (null === $this->accessToken ||
             false === $this->accessToken ||
@@ -58,29 +65,33 @@ class InstagramFeed extends AbstractFeedProvider
     protected function getFeed($count = 5)
     {
         try {
-            $countKey = $this->cacheKey . $count;
+            // cache key
+            $cacheKey = $this->buildCacheKey($count);
 
-            if (null !== $this->cacheProvider &&
-                $this->cacheProvider->contains($countKey)) {
-                return $this->cacheProvider->fetch($countKey);
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
             }
-
+            
+            // http client
             $client = new \GuzzleHttp\Client();
-            $response = $client->get('https://api.instagram.com/v1/users/' . $this->userId . '/media/recent/', [
+
+            // query parameters
+            $params = [
                 'query' => [
                     'access_token' => $this->accessToken,
                     'count' => $count,
                 ],
-            ]);
+            ];
+
+            // call the api and get response
+            $response = $client->get('https://api.instagram.com/v1/users/' . $this->userId . '/media/recent/', $params);
+
+            // decode body
             $body = json_decode($response->getBody());
 
-            if (null !== $this->cacheProvider) {
-                $this->cacheProvider->save(
-                    $countKey,
-                    $body->data,
-                    $this->ttl
-                );
-            }
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $body->data);
 
             return $body->data;
         } catch (ClientException $e) {
@@ -96,7 +107,7 @@ class InstagramFeed extends AbstractFeedProvider
     public function getDateTime($item)
     {
         $date = new \DateTime();
-        $date->setTimestamp($item->created_time);
+        $date->setTimestamp($item->{self::TIME_KEY});
         return $date;
     }
 
@@ -134,5 +145,19 @@ class InstagramFeed extends AbstractFeedProvider
     public function getErrors($feed)
     {
         return $feed['error'];
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    protected function buildCacheKey($count)
+    {
+        $platform = $this->getFeedPlatform();
+        $user = $this->userId;
+        return "{$platform}:{$user}:{$count}";
     }
 }

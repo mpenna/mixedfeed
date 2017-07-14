@@ -20,29 +20,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @file TwitterFeed.php
+ * @file TwitterStatusFeed.php
  * @author Ambroise Maupate
  */
 namespace RZ\MixedFeed;
 
+use Illuminate\Cache\Repository;
 use Abraham\TwitterOAuth\TwitterOAuthException;
-use Doctrine\Common\Cache\CacheProvider;
-use RZ\MixedFeed\AbstractFeedProvider\AbstractTwitterFeed;
+use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
 
 /**
  * Get a Twitter user timeline feed.
  */
-class TwitterFeed extends AbstractTwitterFeed
+class TwitterStatusFeed extends TwitterFeedProvider
 {
+    const timeKey = 'created_at';
+
     protected $userId;
     protected $accessToken;
-    protected $cacheProvider;
     protected $cacheKey;
     protected $twitterConnection;
     protected $excludeReplies;
     protected $includeRts;
-
-    protected static $timeKey = 'created_at';
 
     /**
      *
@@ -61,52 +60,76 @@ class TwitterFeed extends AbstractTwitterFeed
         $consumerSecret,
         $accessToken,
         $accessTokenSecret,
-        CacheProvider $cacheProvider = null,
+        Repository $cacheProvider = null,
         $excludeReplies = true,
         $includeRts = false
     ) {
-
         parent::__construct(
             $consumerKey,
             $consumerSecret,
             $accessToken,
-            $accessTokenSecret,
-            $cacheProvider
+            $accessTokenSecret
         );
 
         $this->userId = $userId;
+        $this->cacheProvider = $cacheProvider;
         $this->excludeReplies = $excludeReplies;
         $this->includeRts = $includeRts;
-        $this->cacheKey = $this->getFeedPlatform() . $this->userId;
     }
 
     protected function getFeed($count = 5)
     {
-        $countKey = $this->cacheKey . $count;
-
         try {
-            if (null !== $this->cacheProvider &&
-                $this->cacheProvider->contains($countKey)) {
-                return $this->cacheProvider->fetch($countKey);
+            // cache key
+            $cacheKey = $this->buildCacheKey($this->userId, $count);
+
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
             }
+            
+            // call the api and get response
             $body = $this->twitterConnection->get("statuses/user_timeline", [
                 "user_id" => $this->userId,
                 "count" => $count,
                 "exclude_replies" => $this->excludeReplies,
                 'include_rts' => $this->includeRts,
             ]);
-            if (null !== $this->cacheProvider) {
-                $this->cacheProvider->save(
-                    $countKey,
-                    $body,
-                    $this->ttl
-                );
+
+            // did the call return with an error ?
+            if ($this->twitterConnection->getLastHttpCode() !== 200) {
+                return $body;
             }
+
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $body);
+
             return $body;
         } catch (TwitterOAuthException $e) {
             return [
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getFeedPlatform()
+    {
+        return 'twitter_status';
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    private function buildCacheKey($user, $count)
+    {
+        $platform = $this->getFeedPlatform();
+        return "{$platform}:{$user}:{$count}";
     }
 }

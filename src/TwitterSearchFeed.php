@@ -25,19 +25,18 @@
  */
 namespace RZ\MixedFeed;
 
+use Illuminate\Cache\Repository;
 use Abraham\TwitterOAuth\TwitterOAuthException;
-use Doctrine\Common\Cache\CacheProvider;
-use RZ\MixedFeed\AbstractFeedProvider\AbstractTwitterFeed;
+use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
 
 /**
  * Get a Twitter search tweets feed.
  */
-class TwitterSearchFeed extends AbstractTwitterFeed
+class TwitterSearchFeed extends TwitterFeedProvider
 {
-    protected $cacheKey;
-    protected $queryParams;
+    const timeKey = 'created_at';
 
-    protected static $timeKey = 'created_at';
+    protected $queryParams;
 
     /**
      *
@@ -54,24 +53,78 @@ class TwitterSearchFeed extends AbstractTwitterFeed
         $consumerSecret,
         $accessToken,
         $accessTokenSecret,
-        CacheProvider $cacheProvider = null
+        Repository $cacheProvider = null
     ) {
         parent::__construct(
             $consumerKey,
             $consumerSecret,
             $accessToken,
-            $accessTokenSecret,
-            $cacheProvider
+            $accessTokenSecret
         );
 
         $this->queryParams = array_filter($queryParams);
-        $this->cacheKey = $this->getFeedPlatform() . md5(serialize($queryParams));
+        $this->cacheProvider = $cacheProvider;
+    }
+
+    protected function getFeed($count = 5)
+    {
+        try {
+            // cache key
+            $cacheKey = $this->buildCacheKey($count);
+
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
+            }
+
+            // call the api and get response
+            $body = $this->twitterConnection->get("search/tweets", [
+                "q" => $this->formatQueryParams(),
+                "count" => $count,
+            ]);
+
+            // did the call return with an error ?
+            if ($this->twitterConnection->getLastHttpCode() !== 200) {
+                return $body;
+            }
+
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $body->statuses);
+
+            return $body->statuses;
+        } catch (TwitterOAuthException $e) {
+            return [
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getFeedPlatform()
+    {
+        return 'twitter_search';
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    private function buildCacheKey($count)
+    {
+        $platform = $this->getFeedPlatform();
+        $query = md5(serialize($this->queryParams));
+        return "{$platform}:{$query}:{$count}";
     }
 
     /**
      * @return string
      */
-    protected function formatQueryParams()
+    private function formatQueryParams()
     {
         $inlineParams = [];
         foreach ($this->queryParams as $key => $value) {
@@ -83,36 +136,5 @@ class TwitterSearchFeed extends AbstractTwitterFeed
         }
 
         return implode(' ', $inlineParams);
-    }
-
-    protected function getFeed($count = 5)
-    {
-        $countKey = $this->cacheKey . $count;
-
-        try {
-            if (null !== $this->cacheProvider &&
-                $this->cacheProvider->contains($countKey)) {
-                return $this->cacheProvider->fetch($countKey);
-            }
-
-            $body = $this->twitterConnection->get("search/tweets", [
-                "q" => $this->formatQueryParams(),
-                "count" => $count,
-            ]);
-
-            if (null !== $this->cacheProvider) {
-                $this->cacheProvider->save(
-                    $countKey,
-                    $body->statuses,
-                    $this->ttl
-                );
-            }
-
-            return $body->statuses;
-        } catch (TwitterOAuthException $e) {
-            return [
-                'error' => $e->getMessage(),
-            ];
-        }
     }
 }

@@ -25,23 +25,21 @@
  */
 namespace RZ\MixedFeed;
 
-use Doctrine\Common\Cache\CacheProvider;
+use Illuminate\Cache\Repository;
 use GuzzleHttp\Exception\ClientException;
-use RZ\MixedFeed\AbstractFeedProvider;
 use RZ\MixedFeed\Exception\CredentialsException;
+use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
  * Get a github repository releases feed.
  */
 class GithubReleasesFeed extends AbstractFeedProvider
 {
+    const TIME_KEY = 'created_at';
+
     protected $repository;
     protected $accessToken;
-    protected $cacheProvider;
-    protected $cacheKey;
     protected $page;
-
-    protected static $timeKey = 'created_at';
 
     /**
      *
@@ -52,14 +50,13 @@ class GithubReleasesFeed extends AbstractFeedProvider
     public function __construct(
         $repository,
         $accessToken,
-        CacheProvider $cacheProvider = null,
+        Repository $cacheProvider = null,
         $page = 1
     ) {
         $this->repository = $repository;
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
         $this->page = $page;
-        $this->cacheKey = $this->getFeedPlatform() . $this->repository . $this->page;
 
         if (null === $repository ||
             false === $repository ||
@@ -80,56 +77,45 @@ class GithubReleasesFeed extends AbstractFeedProvider
 
     protected function getFeed($count = 5)
     {
-        $countKey = $this->cacheKey . $count;
-
         try {
-            if (null !== $this->cacheProvider &&
-                $this->cacheProvider->contains($countKey)) {
-                return $this->cacheProvider->fetch($countKey);
-            }
+            // cache key
+            $cacheKey = $this->buildCacheKey($count);
 
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
+            }
+            
+            // http client
             $client = new \GuzzleHttp\Client();
-            $response = $client->get('https://api.github.com/repos/' . $this->repository . '/releases', [
+
+            // query parameters
+            $params = [
                 'query' => [
                     'access_token' => $this->accessToken,
                     'per_page' => $count,
                     'token_type' => 'bearer',
                     'page' => $this->page,
                 ],
-            ]);
+            ];
+            
+            // call the api and get response
+            $response = $client->get('https://api.github.com/repos/' . $this->repository . '/releases', $params);
+
+            // decode body
             $body = json_decode($response->getBody());
 
-            if (null !== $this->cacheProvider) {
-                $this->cacheProvider->save(
-                    $countKey,
-                    $body,
-                    $this->ttl
-                );
-            }
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $body);
+
             return $body;
         } catch (ClientException $e) {
             return [
                 'error' => $e->getMessage(),
             ];
         }
-    }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getDateTime($item)
-    {
-        $date = new \DateTime();
-        $date->setTimestamp(strtotime($item->created_at));
-        return $date;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalMessage($item)
-    {
-        return $item->name;
+        return $data;
     }
 
     /**
@@ -138,6 +124,16 @@ class GithubReleasesFeed extends AbstractFeedProvider
     public function getFeedPlatform()
     {
         return 'github_release';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getDateTime($item)
+    {
+        $date = new \DateTime();
+        $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
+        return $date;
     }
 
     /**
@@ -160,5 +156,28 @@ class GithubReleasesFeed extends AbstractFeedProvider
         }
 
         return $errors;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalMessage($item)
+    {
+        return $item->name;
+    }
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    private function buildCacheKey($count)
+    {
+        $platform = $this->getFeedPlatform();
+        $repository = $this->repository;
+        $page = $this->page;
+        return "{$platform}:{$repository}:{$page}:{$count}";
     }
 }
