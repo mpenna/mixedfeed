@@ -20,11 +20,12 @@
         "guzzlehttp/guzzle": "^6.2"
     },
     "replace": {
-        "patrickgalbraith/mixedfeed": "1.*"
+        "patrickgalbraith/mixedfeed": "^1.*"
     },
     "autoload": {
         "psr-4": {
             "RZ\\MixedFeed\\": "src/"
         }
-    }
+    },
+    "minimum-stability": "stable"
 }
