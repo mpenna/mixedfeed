@@ -34,7 +34,7 @@ use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
  */
 class TwitterSearchFeed extends TwitterFeedProvider
 {
-    const timeKey = 'created_at';
+    const TIME_KEY = 'created_at';
 
     protected $queryParams;
 

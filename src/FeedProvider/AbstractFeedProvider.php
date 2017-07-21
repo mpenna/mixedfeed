@@ -36,29 +36,48 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
 {
     protected $ttl = 7200;
     protected $cacheProvider;
+    protected $callback;
 
     /**
      * {@inheritdoc}
      */
     public function getItems($count = 5)
     {
+        // will hold the normalized feed items
+        $nList = [];
+
+        // get feed from provider
         $list = $this->getFeed($count);
 
+        // normalize feed
         if ($this->isValid($list)) {
-            // inject feedItemPlatform, normalizedDate and canonicalMessage
-            // to be able to merge them with other types
             foreach ($list as $index => $item) {
                 if (is_object($item)) {
-                    \Log::info('AbstractFeedProvider->getItems() isValid and item is object', [$item]);
-                    $item->feedItemPlatform = $this->getFeedPlatform();
-                    $item->normalizedDate = $this->getDateTime($item);
-                    $item->canonicalMessage = $this->getCanonicalMessage($item);
-                } else {
-                    \Log::info('AbstractFeedProvider->getItems() isValid but item is NOT object', [$item]);
-                    unset($list[$index]);
+                    $nItem = new \stdClass;
+
+                    // inject dynamic attributes that will allow merging feed items of different types
+                    $nItem->feed_item_provider = $this->getFeedProvider();
+                    $nItem->feed_item_platform = $this->getFeedPlatform();
+                    $nItem->canonical_id = $this->getCanonicalId($item);
+                    $nItem->canonical_message = $this->getCanonicalMessage($item);
+                    $nItem->normalized_date = $this->getDateTime($item);
+                    $nItem->original_data = $item;
+                    
+                    // append normalized item to list
+                    $nList[] = $nItem;
+                // } else {
+                //     // remove errored item from list
+                //     unset($list[$index]);
                 }
             }
-            return $list;
+
+            // fire the callback if one has been informed
+            if ($this->callback) {
+                ($this->callback)($nList);
+            }
+
+            // return normalized list
+            return $nList;
         } else {
             throw new FeedProviderErrorException($this->getFeedPlatform(), $this->getErrors($list));
         }

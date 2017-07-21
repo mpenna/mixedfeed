@@ -120,7 +120,7 @@ class InstagramFeed extends AbstractFeedProvider
             return $item->caption->text;
         }
 
-        return "";
+        return '';
     }
 
     /**

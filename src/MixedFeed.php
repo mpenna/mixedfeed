@@ -58,11 +58,21 @@ class MixedFeed extends AbstractFeedProvider
     }
 
     /**
+     * Get the social provider name.
+     *
+     * @return string
+     */
+    public function getFeedProvider()
+    {
+        return 'mixed';
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function getFeedPlatform()
     {
-        return 'mixed';
+        return '';
     }
 
     /**
@@ -79,12 +89,12 @@ class MixedFeed extends AbstractFeedProvider
 
             // do we have this data in the cache ?
             if ($data = $this->fetchFromCache($cacheKey)) {
-                \Log::info('MixedFeed : fetched from cache', [$data]);
                 return $data;
             }
 
             $perProviderCount = floor($count / count($this->providers));
 
+            // merge feeds
             foreach ($this->providers as $provider) {
                 try {
                     $list = array_merge($list, $provider->getItems($perProviderCount));
@@ -95,18 +105,20 @@ class MixedFeed extends AbstractFeedProvider
                 }
             }
 
+            // sort feeds
             usort($list, function (\stdClass $a, \stdClass $b) {
-                $aDT = $a->normalizedDate;
-                $bDT = $b->normalizedDate;
+                $aDT = $a->normalized_date;
+                $bDT = $b->normalized_date;
 
                 if ($aDT == $bDT) {
                     return 0;
                 }
-                // DESC sorting
-                return ($aDT > $bDT) ? -1 : 1;
-            });
 
-            \Log::info('MixedFeed : fetched from apis', [$list]);
+                // DESC sorting
+                // return ($aDT > $bDT) ? -1 : 1;
+                // ASC sorting
+                return ($aDT > $bDT) ? 1 : -1;
+            });
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $list);
@@ -114,37 +126,6 @@ class MixedFeed extends AbstractFeedProvider
 
         return $list;
     }
-    // public function getItems($count = 5)
-    // {
-    //     $list = [];
-
-    //     if (count($this->providers) > 0) {
-    //         $perProviderCount = floor($count / count($this->providers));
-
-    //         foreach ($this->providers as $provider) {
-    //             try {
-    //                 $list = array_merge($list, $provider->getItems($perProviderCount));
-    //             } catch (FeedProviderErrorException $e) {
-    //                 $list = array_merge($list, [
-    //                     new ErroredFeedItem($e->getMessage(), $provider->getFeedPlatform()),
-    //                 ]);
-    //             }
-    //         }
-
-    //         usort($list, function (\stdClass $a, \stdClass $b) {
-    //             $aDT = $a->normalizedDate;
-    //             $bDT = $b->normalizedDate;
-
-    //             if ($aDT == $bDT) {
-    //                 return 0;
-    //             }
-    //             // DESC sorting
-    //             return ($aDT > $bDT) ? -1 : 1;
-    //         });
-    //     }
-
-    //     return $list;
-    // }
 
     /**
      * {@inheritdoc}
@@ -152,14 +133,6 @@ class MixedFeed extends AbstractFeedProvider
     public function getDateTime($item)
     {
         return new \DateTime('now');
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isValid($feed)
-    {
-        return true;
     }
 
     /**
@@ -175,7 +148,23 @@ class MixedFeed extends AbstractFeedProvider
      */
     public function getCanonicalMessage($item)
     {
-        return "";
+        return '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalId($item)
+    {
+        return '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isValid($feed)
+    {
+        return true;
     }
 
     /**
@@ -187,7 +176,11 @@ class MixedFeed extends AbstractFeedProvider
      */
     private function buildCacheKey($user, $count)
     {
+        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
-        return "{$platform}:{$user}:{$count}";
+        
+        return "{$provider}" . !empty($platform) 
+            ? ":{$platform}:{$user}:{$count}"
+            : ":{$user}:{$count}";
     }
 }

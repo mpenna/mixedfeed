@@ -38,8 +38,8 @@ class ErroredFeedItem extends \stdClass
     public function __construct($message, $feedItemPlatform)
     {
         $this->message = $message;
-        $this->feedItemPlatform = $feedItemPlatform . '[errored]';
-        $this->normalizedDate = new \Datetime('now');
-        $this->canonicalMessage = $message;
+        $this->feed_item_platform = $feedItemPlatform . '[errored]';
+        $this->normalized_date = new \Datetime('now');
+        $this->canonical_message = $message;
     }
 }

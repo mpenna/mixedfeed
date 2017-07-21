@@ -25,9 +25,8 @@
  */
 namespace RZ\MixedFeed;
 
-// use Illuminate\Cache\Repository;
-use Illuminate\Contracts\Cache\Repository;
 use GuzzleHttp\Exception\ClientException;
+use Illuminate\Contracts\Cache\Repository;
 use RZ\MixedFeed\Exception\CredentialsException;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
@@ -57,7 +56,8 @@ class FacebookUserFeed extends AbstractFeedProvider
         $userId,
         $accessToken,
         Repository $cacheProvider = null,
-        $fields = []
+        $fields = [],
+        $callback = null
     ) {
         $this->userId = $userId;
         $this->accessToken = $accessToken;
@@ -65,6 +65,8 @@ class FacebookUserFeed extends AbstractFeedProvider
 
         $this->fields = ['link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
         $this->fields = array_unique(array_merge($this->fields, $fields));
+
+        $this->callback = $callback;
 
         if (null === $this->accessToken ||
             false === $this->accessToken ||
@@ -83,7 +85,7 @@ class FacebookUserFeed extends AbstractFeedProvider
             if ($data = $this->fetchFromCache($cacheKey)) {
                 return $data;
             }
-            
+              
             // http client
             $client = new \GuzzleHttp\Client();
             
@@ -116,7 +118,7 @@ class FacebookUserFeed extends AbstractFeedProvider
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $body->data);
-            
+             
             return $body->data;
         } catch (ClientException $e) {
             return [
@@ -128,9 +130,17 @@ class FacebookUserFeed extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function getFeedProvider()
+    {
+        return 'facebook';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getFeedPlatform()
     {
-        return 'facebook_user';
+        return 'user';
     }
 
     /**
@@ -141,14 +151,6 @@ class FacebookUserFeed extends AbstractFeedProvider
         $date = new \DateTime();
         $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
         return $date;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isValid($feed)
-    {
-        return null !== $feed && is_array($feed) && !isset($feed['error']);
     }
 
     /**
@@ -165,6 +167,22 @@ class FacebookUserFeed extends AbstractFeedProvider
     public function getCanonicalMessage($item)
     {
         return isset($item->message) ? $item->message : '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalId($item)
+    {
+        return isset($item->id) ? $item->id : '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function isValid($feed)
+    {
+        return null !== $feed && is_array($feed) && !isset($feed['error']);
     }
 
     /**
@@ -224,8 +242,12 @@ class FacebookUserFeed extends AbstractFeedProvider
      */
     private function buildCacheKey($count)
     {
+        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
         $user = $this->userId;
-        return "{$platform}:{$user}:{$count}";
+
+        return "{$provider}" . !empty($platform) 
+            ? ":{$platform}:{$user}:{$count}"
+            : ":{$user}:{$count}";
     }
 }

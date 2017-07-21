@@ -37,6 +37,8 @@ class TwitterFeedProvider extends AbstractFeedProvider
 {
     const TIME_KEY = 'created_at';
 
+    protected $sinceId = null;
+    protected $maxId = null;
     protected $twitterConnection;
 
     /**
@@ -87,9 +89,17 @@ class TwitterFeedProvider extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
-    public function getFeedPlatform()
+    public function getFeedProvider()
     {
         return 'twitter';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getFeedPlatform()
+    {
+        return '';
     }
 
     /**
@@ -108,6 +118,54 @@ class TwitterFeedProvider extends AbstractFeedProvider
     public function isValid($feed)
     {
         return null !== $feed && is_array($feed);
+    }
+
+    /**
+     * Gets the value of sinceId.
+     *
+     * @return integer
+     */
+    public function getSinceId()
+    {
+        return $this->sinceId;
+    }
+
+    /**
+     * Sets the value of sinceId.
+     *
+     * @param integer $sinceId the since_id
+     *
+     * @return self
+     */
+    public function setSinceId($sinceId)
+    {
+        $this->sinceId = $sinceId;
+
+        return $this;
+    }
+
+    /**
+     * Gets the value of maxId.
+     *
+     * @return integer
+     */
+    public function getMaxId()
+    {
+        return $this->maxId;
+    }
+
+    /**
+     * Sets the value of maxId.
+     *
+     * @param integer $maxId the max_id
+     *
+     * @return self
+     */
+    public function setMaxId($maxId)
+    {
+        $this->maxId = $maxId;
+
+        return $this;
     }
 
     /**
@@ -133,5 +191,13 @@ class TwitterFeedProvider extends AbstractFeedProvider
     public function getCanonicalMessage($item)
     {
         return $item->text;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalId($item)
+    {
+        return isset($item->id_str) ? $item->id_str : '';
     }
 }

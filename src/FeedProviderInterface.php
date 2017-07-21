@@ -28,6 +28,13 @@ namespace RZ\MixedFeed;
 interface FeedProviderInterface
 {
     /**
+     * Get the social provider name.
+     *
+     * @return string
+     */
+    public function getFeedProvider();
+
+    /**
      * Get the social platform name.
      *
      * @return string
@@ -39,8 +46,8 @@ interface FeedProviderInterface
      * Get item method must return the direct
      * feed array and must inject two parameters in each item:
      *
-     * * feedItemPlatform (string)
-     * * normalizedDate (\DateTime)
+     * * feed_item_platform (string)
+     * * normalized_date (\DateTime)
      *
      * @param  integer $count
      * @return array
@@ -56,14 +63,6 @@ interface FeedProviderInterface
     public function getDateTime($item);
 
     /**
-     * Check if the feed provider has succeded to
-     * contact API.
-     *
-     * @return boolean
-     */
-    public function isValid($feed);
-
-    /**
      * Get errors details.
      *
      * @return string
@@ -77,4 +76,20 @@ interface FeedProviderInterface
      * @return string
      */
     public function getCanonicalMessage($item);
+
+    /**
+     * Get a canonical id from current feed item.
+     *
+     * @param  stdClass $item
+     * @return string
+     */
+    public function getCanonicalId($item);
+
+    /**
+     * Check if the feed provider has succeded to
+     * contact API.
+     *
+     * @return boolean
+     */
+    public function isValid($feed);
 }

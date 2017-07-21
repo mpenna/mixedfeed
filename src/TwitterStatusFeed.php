@@ -34,7 +34,7 @@ use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
  */
 class TwitterStatusFeed extends TwitterFeedProvider
 {
-    const timeKey = 'created_at';
+    const TIME_KEY = 'created_at';
 
     protected $userId;
     protected $accessToken;
@@ -53,6 +53,7 @@ class TwitterStatusFeed extends TwitterFeedProvider
      * @param CacheProvider|null $cacheProvider
      * @param boolean            $excludeReplies
      * @param boolean            $includeRts
+     * @param callable           $callback
      */
     public function __construct(
         $userId,
@@ -62,7 +63,8 @@ class TwitterStatusFeed extends TwitterFeedProvider
         $accessTokenSecret,
         Repository $cacheProvider = null,
         $excludeReplies = true,
-        $includeRts = false
+        $includeRts = false,
+        $callback = null
     ) {
         parent::__construct(
             $consumerKey,
@@ -75,6 +77,7 @@ class TwitterStatusFeed extends TwitterFeedProvider
         $this->cacheProvider = $cacheProvider;
         $this->excludeReplies = $excludeReplies;
         $this->includeRts = $includeRts;
+        $this->callback = $callback;
     }
 
     protected function getFeed($count = 5)
@@ -88,13 +91,28 @@ class TwitterStatusFeed extends TwitterFeedProvider
                 return $data;
             }
             
-            // call the api and get response
-            $body = $this->twitterConnection->get("statuses/user_timeline", [
+            // query parameters
+            $params = [
                 "user_id" => $this->userId,
                 "count" => $count,
                 "exclude_replies" => $this->excludeReplies,
                 'include_rts' => $this->includeRts,
-            ]);
+            ];
+
+            // filter by id range: since_id
+            if (null !== $this->sinceId &&
+                is_numeric($this->sinceId)) {
+                $params['since_id'] = $this->sinceId;
+            }
+            
+            // filter by id range: max_id
+            if (null !== $this->maxId &&
+                is_numeric($this->maxId)) {
+                $params['max_id'] = $this->maxId;
+            }
+            
+            // call the api and get response
+            $body = $this->twitterConnection->get("statuses/user_timeline", $params);
 
             // did the call return with an error ?
             if ($this->twitterConnection->getLastHttpCode() !== 200) {
@@ -117,7 +135,7 @@ class TwitterStatusFeed extends TwitterFeedProvider
      */
     public function getFeedPlatform()
     {
-        return 'twitter_status';
+        return 'status';
     }
 
     /**
@@ -129,7 +147,11 @@ class TwitterStatusFeed extends TwitterFeedProvider
      */
     private function buildCacheKey($user, $count)
     {
+        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
-        return "{$platform}:{$user}:{$count}";
+
+        return "{$provider}" . !empty($platform)
+            ? "{$platform}:{$user}:{$count}"
+            : ":{$user}:{$count}";
     }
 }
