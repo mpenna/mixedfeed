@@ -57,25 +57,25 @@ class TwitterFeedProvider extends AbstractFeedProvider
         if (null === $consumerKey ||
             false === $consumerKey ||
             empty($consumerKey)) {
-            throw new CredentialsException("TwitterSearchFeed needs a valid consumer key.", 1);
+            throw new CredentialsException("TwitterFeed needs a valid consumer key.", 1);
         }
 
         if (null === $consumerSecret ||
             false === $consumerSecret ||
             empty($consumerSecret)) {
-            throw new CredentialsException("TwitterSearchFeed needs a valid consumer secret.", 1);
+            throw new CredentialsException("TwitterFeed needs a valid consumer secret.", 1);
         }
 
         if (null === $accessToken ||
             false === $accessToken ||
             empty($accessToken)) {
-            throw new CredentialsException("TwitterSearchFeed needs a valid access token.", 1);
+            throw new CredentialsException("TwitterFeed needs a valid access token.", 1);
         }
 
         if (null === $accessTokenSecret ||
             false === $accessTokenSecret ||
             empty($accessTokenSecret)) {
-            throw new CredentialsException("TwitterSearchFeed needs a valid access token secret.", 1);
+            throw new CredentialsException("TwitterFeed needs a valid access token secret.", 1);
         }
 
         $this->twitterConnection = new TwitterOAuth(
