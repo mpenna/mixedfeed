@@ -59,15 +59,13 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
                     $nItem->feed_item_provider = $this->getFeedProvider();
                     $nItem->feed_item_platform = $this->getFeedPlatform();
                     $nItem->canonical_id = $this->getCanonicalId($item);
+                    $nItem->canonical_app = $this->getCanonicalApp($item);
                     $nItem->canonical_message = $this->getCanonicalMessage($item);
                     $nItem->normalized_date = $this->getDateTime($item);
                     $nItem->original_data = $item;
                     
                     // append normalized item to list
                     $nList[] = $nItem;
-                // } else {
-                //     // remove errored item from list
-                //     unset($list[$index]);
                 }
             }
 

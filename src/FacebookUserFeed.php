@@ -63,7 +63,7 @@ class FacebookUserFeed extends AbstractFeedProvider
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
 
-        $this->fields = ['link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
+        $this->fields = ['application', 'link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
         $this->fields = array_unique(array_merge($this->fields, $fields));
 
         $this->callback = $callback;
@@ -175,6 +175,14 @@ class FacebookUserFeed extends AbstractFeedProvider
     public function getCanonicalId($item)
     {
         return isset($item->id) ? $item->id : '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalApp($item)
+    {
+        return isset($item->application->id) ? $item->application->id : '';
     }
 
     /**

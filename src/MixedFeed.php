@@ -35,6 +35,7 @@ use RZ\MixedFeed\Exception\FeedProviderErrorException;
  */
 class MixedFeed extends AbstractFeedProvider
 {
+    protected $userId;
     protected $providers;
 
     /**
@@ -44,6 +45,7 @@ class MixedFeed extends AbstractFeedProvider
      * @param array $providers
      */
     public function __construct(
+        $userId,
         array $providers = [],
         Repository $cacheProvider = null
     ) {
@@ -53,6 +55,7 @@ class MixedFeed extends AbstractFeedProvider
             }
         }
 
+        $this->userId = $userId;
         $this->providers = $providers;
         $this->cacheProvider = $cacheProvider;
     }
@@ -85,19 +88,20 @@ class MixedFeed extends AbstractFeedProvider
         if (count($this->providers) > 0) {
 
             // cache key
-            $cacheKey = $this->buildCacheKey('user123', $count);
+            $cacheKey = $this->buildCacheKey($count);
 
             // do we have this data in the cache ?
             if ($data = $this->fetchFromCache($cacheKey)) {
                 return $data;
             }
 
-            $perProviderCount = floor($count / count($this->providers));
+            // $perProviderCount = floor($count / count($this->providers));
 
             // merge feeds
             foreach ($this->providers as $provider) {
                 try {
-                    $list = array_merge($list, $provider->getItems($perProviderCount));
+                    // $list = array_merge($list, $provider->getItems($perProviderCount));
+                    $list = array_merge($list, $provider->getItems($count));
                 } catch (FeedProviderErrorException $e) {
                     $list = array_merge($list, [
                         new ErroredFeedItem($e->getMessage(), $provider->getFeedPlatform()),
@@ -162,6 +166,14 @@ class MixedFeed extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function getCanonicalApp($item)
+    {
+        return '';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function isValid($feed)
     {
         return true;
@@ -174,10 +186,11 @@ class MixedFeed extends AbstractFeedProvider
      *
      * @return string
      */
-    private function buildCacheKey($user, $count)
+    private function buildCacheKey($count)
     {
         $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
+        $user = $this->userId;
         
         return "{$provider}" . !empty($platform) 
             ? ":{$platform}:{$user}:{$count}"

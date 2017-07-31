@@ -86,6 +86,14 @@ interface FeedProviderInterface
     public function getCanonicalId($item);
 
     /**
+     * Get a canonical app id from current feed item.
+     *
+     * @param  stdClass $item
+     * @return string
+     */
+    public function getCanonicalApp($item);
+
+    /**
      * Check if the feed provider has succeded to
      * contact API.
      *

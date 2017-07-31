@@ -200,4 +200,12 @@ class TwitterFeedProvider extends AbstractFeedProvider
     {
         return isset($item->id_str) ? $item->id_str : '';
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalApp($item)
+    {
+        return isset($item->source) ? strip_tags($item->source) : '';
+    }
 }
