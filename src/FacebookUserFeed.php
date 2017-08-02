@@ -88,33 +88,23 @@ class FacebookUserFeed extends AbstractFeedProvider
               
             // http client
             $client = new \GuzzleHttp\Client();
+
+            // the endpoint
+            $endpoint = 'https://graph.facebook.com/' . $this->userId . '/posts';
             
             // query parameters
-            $params = [
-                'query' => [
-                    'access_token' => $this->accessToken,
-                    'limit' => $count,
-                    'fields' => implode(',', $this->fields),
-                ],
-            ];
-
-            // filter by date range: since
-            if (null !== $this->since &&
-                $this->since instanceof \Datetime) {
-                $params['query']['since'] = $this->since->getTimestamp();
-            }
-            
-            // filter by date range: until
-            if (null !== $this->until &&
-                $this->until instanceof \Datetime) {
-                $params['query']['until'] = $this->until->getTimestamp();
-            }
+            $params = $this->buildRequestData($count);
 
             // call the api and get response
-            $response = $client->get('https://graph.facebook.com/' . $this->userId . '/posts', $params);
+            $response = $client->get($endpoint, $params);
 
             // decode body
             $body = json_decode($response->getBody());
+
+            // did the call return with an error ?
+            if ($response->getStatusCode() !== 200) {
+                return $body;
+            }
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $body->data);
@@ -250,12 +240,47 @@ class FacebookUserFeed extends AbstractFeedProvider
      */
     private function buildCacheKey($count)
     {
-        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
+        
+        $prefix = "{$this->getFeedProvider()}" . (
+            !empty($platform) ? ":{$platform}" : ""
+        );
+        
         $user = $this->userId;
 
-        return "{$provider}" . !empty($platform) 
-            ? ":{$platform}:{$user}:{$count}"
-            : ":{$user}:{$count}";
+        return "{$prefix}:{$user}:{$count}";
+    }
+
+    /**
+     * Builds the request data.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return mixed
+     */
+    private function buildRequestData($count)
+    {
+        // query parameters
+        $params = [
+            'query' => [
+                'access_token' => $this->accessToken,
+                'limit' => $count,
+                'fields' => implode(',', $this->fields),
+            ],
+        ];
+
+        // filter by date range: since
+        if ($this->since !== null &&
+            $this->since instanceof \Datetime) {
+            $params['query']['since'] = $this->since->getTimestamp();
+        }
+        
+        // filter by date range: until
+        if ($this->until !== null &&
+            $this->until instanceof \Datetime) {
+            $params['query']['until'] = $this->until->getTimestamp();
+        }
+
+        return $params;
     }
 }

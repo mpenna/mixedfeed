@@ -53,7 +53,8 @@ class TwitterSearchFeed extends TwitterFeedProvider
         $consumerSecret,
         $accessToken,
         $accessTokenSecret,
-        Repository $cacheProvider = null
+        Repository $cacheProvider = null,
+        $callback = null
     ) {
         parent::__construct(
             $consumerKey,
@@ -64,6 +65,7 @@ class TwitterSearchFeed extends TwitterFeedProvider
 
         $this->queryParams = array_filter($queryParams);
         $this->cacheProvider = $cacheProvider;
+        $this->callback = $callback;
     }
 
     protected function getFeed($count = 5)
@@ -77,11 +79,14 @@ class TwitterSearchFeed extends TwitterFeedProvider
                 return $data;
             }
 
+            // the endpoint
+            $endpoint = 'search/tweets';
+
+            // query parameters
+            $params = $this->buildRequestData($count);
+
             // call the api and get response
-            $body = $this->twitterConnection->get("search/tweets", [
-                "q" => $this->formatQueryParams(),
-                "count" => $count,
-            ]);
+            $body = $this->twitterConnection->get($endpoint, $params);
 
             // did the call return with an error ?
             if ($this->twitterConnection->getLastHttpCode() !== 200) {
@@ -104,7 +109,7 @@ class TwitterSearchFeed extends TwitterFeedProvider
      */
     public function getFeedPlatform()
     {
-        return 'twitter_search';
+        return 'search';
     }
 
     /**
@@ -117,8 +122,43 @@ class TwitterSearchFeed extends TwitterFeedProvider
     private function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
+        
+        $prefix = "{$this->getFeedProvider()}" . (
+            !empty($platform) ? ":{$platform}" : ""
+        );
+        
         $query = md5(serialize($this->queryParams));
-        return "{$platform}:{$query}:{$count}";
+
+        return "{$prefix}:{$query}:{$count}";
+    }
+    /**
+     * Builds the request data.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return mixed
+     */
+    private function buildRequestData($count)
+    {
+        // query parameters
+        $params = [
+            'q' => $this->formatQueryParams(),
+            'count' => $count,
+        ];
+
+        // filter by id range: since_id
+        if ($this->sinceId !== null &&
+            is_numeric($this->sinceId)) {
+            $params['since_id'] = $this->sinceId;
+        }
+        
+        // filter by id range: max_id
+        if ($this->maxId !== null &&
+            is_numeric($this->maxId)) {
+            $params['max_id'] = $this->maxId;
+        }
+
+        return $params;
     }
 
     /**

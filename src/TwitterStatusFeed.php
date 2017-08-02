@@ -37,9 +37,6 @@ class TwitterStatusFeed extends TwitterFeedProvider
     const TIME_KEY = 'created_at';
 
     protected $userId;
-    protected $accessToken;
-    protected $cacheKey;
-    protected $twitterConnection;
     protected $excludeReplies;
     protected $includeRts;
 
@@ -84,35 +81,21 @@ class TwitterStatusFeed extends TwitterFeedProvider
     {
         try {
             // cache key
-            $cacheKey = $this->buildCacheKey($this->userId, $count);
+            $cacheKey = $this->buildCacheKey($count);
 
             // do we have this data in the cache ?
             if ($data = $this->fetchFromCache($cacheKey)) {
                 return $data;
             }
             
-            // query parameters
-            $params = [
-                "user_id" => $this->userId,
-                "count" => $count,
-                "exclude_replies" => $this->excludeReplies,
-                'include_rts' => $this->includeRts,
-            ];
+            // the endpoint
+            $endpoint = 'statuses/user_timeline';
 
-            // filter by id range: since_id
-            if (null !== $this->sinceId &&
-                is_numeric($this->sinceId)) {
-                $params['since_id'] = $this->sinceId;
-            }
-            
-            // filter by id range: max_id
-            if (null !== $this->maxId &&
-                is_numeric($this->maxId)) {
-                $params['max_id'] = $this->maxId;
-            }
-            
+            // query parameters
+            $params = $this->buildRequestData($count);
+
             // call the api and get response
-            $body = $this->twitterConnection->get("statuses/user_timeline", $params);
+            $body = $this->twitterConnection->get($endpoint, $params);
 
             // did the call return with an error ?
             if ($this->twitterConnection->getLastHttpCode() !== 200) {
@@ -145,13 +128,48 @@ class TwitterStatusFeed extends TwitterFeedProvider
      *
      * @return string
      */
-    private function buildCacheKey($user, $count)
+    private function buildCacheKey($count)
     {
-        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
+        
+        $prefix = "{$this->getFeedProvider()}" . (
+            !empty($platform) ? ":{$platform}" : ""
+        );
 
-        return "{$provider}" . !empty($platform)
-            ? "{$platform}:{$user}:{$count}"
-            : ":{$user}:{$count}";
+        $user = $this->userId;
+
+        return "{$prefix}:{$user}:{$count}";
+    }
+
+    /**
+     * Builds the request data.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return mixed
+     */
+    private function buildRequestData($count)
+    {
+        // query parameters
+        $params = [
+            'user_id' => $this->userId,
+            'count' => $count,
+            'exclude_replies' => $this->excludeReplies,
+            'include_rts' => $this->includeRts,
+        ];
+
+        // filter by id range: since_id
+        if ($this->sinceId !== null &&
+            is_numeric($this->sinceId)) {
+            $params['since_id'] = $this->sinceId;
+        }
+        
+        // filter by id range: max_id
+        if ($this->maxId !== null &&
+            is_numeric($this->maxId)) {
+            $params['max_id'] = $this->maxId;
+        }
+
+        return $params;
     }
 }
