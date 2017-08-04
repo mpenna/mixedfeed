@@ -27,11 +27,12 @@ namespace RZ\MixedFeed;
 
 use Illuminate\Cache\Repository;
 use RZ\MixedFeed\MockObject\ErroredFeedItem;
+use RZ\MixedFeed\Contracts\FeedProviderInterface;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 use RZ\MixedFeed\Exception\FeedProviderErrorException;
 
 /**
- * Combine feed providers and sort them antechronological.
+ * Combine feed providers and sort them anti-chronologically.
  */
 class MixedFeed extends AbstractFeedProvider
 {
@@ -42,7 +43,9 @@ class MixedFeed extends AbstractFeedProvider
      * Create a mixed feed composed of hetergeneous feed
      * providers.
      *
-     * @param array $providers
+     * @param string          $userId
+     * @param array           $providers
+     * @param Repository|null $cacheProvider
      */
     public function __construct(
         $userId,
@@ -96,12 +99,12 @@ class MixedFeed extends AbstractFeedProvider
             }
 
             // $perProviderCount = floor($count / count($this->providers));
+            $perProviderCount = $count;
 
             // merge feeds
             foreach ($this->providers as $provider) {
                 try {
-                    // $list = array_merge($list, $provider->getItems($perProviderCount));
-                    $list = array_merge($list, $provider->getItems($count));
+                    $list = array_merge($list, $provider->getItems($perProviderCount));
                 } catch (FeedProviderErrorException $e) {
                     $list = array_merge($list, [
                         new ErroredFeedItem($e->getMessage(), $provider->getFeedPlatform()),
@@ -158,6 +161,14 @@ class MixedFeed extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function getCanonicalMedia($item)
+    {
+        return [];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getCanonicalId($item)
     {
         return '';
@@ -188,12 +199,14 @@ class MixedFeed extends AbstractFeedProvider
      */
     private function buildCacheKey($count)
     {
-        $provider = $this->getFeedProvider();
         $platform = $this->getFeedPlatform();
-        $user = $this->userId;
         
-        return "{$provider}" . !empty($platform) 
-            ? ":{$platform}:{$user}:{$count}"
-            : ":{$user}:{$count}";
+        $prefix = "{$this->getFeedProvider()}" . (
+            !empty($platform) ? ":{$platform}" : ""
+        );
+
+        $user = $this->userId;
+
+        return "{$prefix}:{$user}:{$count}";
     }
 }

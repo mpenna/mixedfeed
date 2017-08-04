@@ -25,104 +25,41 @@
  */
 namespace RZ\MixedFeed;
 
-use GuzzleHttp\Exception\ClientException;
 use Illuminate\Contracts\Cache\Repository;
-use RZ\MixedFeed\Exception\CredentialsException;
-use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
+use RZ\MixedFeed\FeedProvider\FacebookFeedProvider;
 
 /**
  * Get a Facebook user timeline feed using an Access Token.
  *
  * https://developers.facebook.com/docs/facebook-login/access-tokens
  */
-class FacebookUserFeed extends AbstractFeedProvider
+class FacebookUserFeed extends FacebookFeedProvider
 {
-    const TIME_KEY = 'created_time';
-    
     protected $userId;
-    protected $accessToken;
-    protected $fields;
-    protected $since = null;
-    protected $until = null;
 
     /**
      *
-     * @param string             $userId
-     * @param string             $accessToken Your App Token
-     * @param CacheProvider|null $cacheProvider
-     * @param array              $fields
+     * @param string          $userId
+     * @param string          $accessToken User Access Token
+     * @param Repository|null $cacheProvider
+     * @param array           $fields
+     * @param callable|null   $callback
      */
     public function __construct(
         $userId,
         $accessToken,
         Repository $cacheProvider = null,
-        $fields = [],
+        array $fields = [],
         $callback = null
     ) {
+        parent::__construct(
+            $accessToken,
+            $cacheProvider,
+            $fields,
+            $callback
+        );
+        
         $this->userId = $userId;
-        $this->accessToken = $accessToken;
-        $this->cacheProvider = $cacheProvider;
-
-        $this->fields = ['application', 'link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
-        $this->fields = array_unique(array_merge($this->fields, $fields));
-
-        $this->callback = $callback;
-
-        if (null === $this->accessToken ||
-            false === $this->accessToken ||
-            empty($this->accessToken)) {
-            throw new CredentialsException("FacebookUserFeed needs a valid user access token.", 1);
-        }
-    }
-
-    protected function getFeed($count = 5)
-    {
-        try {
-            // cache key
-            $cacheKey = $this->buildCacheKey($count);
-
-            // do we have this data in the cache ?
-            if ($data = $this->fetchFromCache($cacheKey)) {
-                return $data;
-            }
-              
-            // http client
-            $client = new \GuzzleHttp\Client();
-
-            // the endpoint
-            $endpoint = 'https://graph.facebook.com/' . $this->userId . '/posts';
-            
-            // query parameters
-            $params = $this->buildRequestData($count);
-
-            // call the api and get response
-            $response = $client->get($endpoint, $params);
-
-            // decode body
-            $body = json_decode($response->getBody());
-
-            // did the call return with an error ?
-            if ($response->getStatusCode() !== 200) {
-                return $body;
-            }
-
-            // put this data in the cache
-            $this->saveToCache($cacheKey, $body->data);
-             
-            return $body->data;
-        } catch (ClientException $e) {
-            return [
-                'error' => $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getFeedProvider()
-    {
-        return 'facebook';
     }
 
     /**
@@ -136,109 +73,15 @@ class FacebookUserFeed extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
-    public function getDateTime($item)
+    protected function getEndpoint()
     {
-        $date = new \DateTime();
-        $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
-        return $date;
+        return 'https://graph.facebook.com/' . $this->userId . '/posts';
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getErrors($feed)
-    {
-        return $feed['error'];
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalMessage($item)
-    {
-        return isset($item->message) ? $item->message : '';
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalId($item)
-    {
-        return isset($item->id) ? $item->id : '';
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getCanonicalApp($item)
-    {
-        return isset($item->application->id) ? $item->application->id : '';
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isValid($feed)
-    {
-        return null !== $feed && is_array($feed) && !isset($feed['error']);
-    }
-
-    /**
-     * Gets the value of since.
-     *
-     * @return \Datetime
-     */
-    public function getSince()
-    {
-        return $this->since;
-    }
-
-    /**
-     * Sets the value of since.
-     *
-     * @param \Datetime $since the since
-     *
-     * @return self
-     */
-    public function setSince(\Datetime $since)
-    {
-        $this->since = $since;
-
-        return $this;
-    }
-
-    /**
-     * Gets the value of until.
-     *
-     * @return \Datetime
-     */
-    public function getUntil()
-    {
-        return $this->until;
-    }
-
-    /**
-     * Sets the value of until.
-     *
-     * @param \Datetime $until the until
-     *
-     * @return self
-     */
-    public function setUntil(\Datetime $until)
-    {
-        $this->until = $until;
-
-        return $this;
-    }
-
-    /**
-     * Builds the cache key for this feed.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return string
-     */
-    private function buildCacheKey($count)
+    protected function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
         
@@ -252,13 +95,9 @@ class FacebookUserFeed extends AbstractFeedProvider
     }
 
     /**
-     * Builds the request data.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return mixed
+     * {@inheritdoc}
      */
-    private function buildRequestData($count)
+    protected function buildRequestData($count)
     {
         // query parameters
         $params = [
@@ -282,5 +121,13 @@ class FacebookUserFeed extends AbstractFeedProvider
         }
 
         return $params;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getResponseData($body)
+    {
+        return $body->data;
     }
 }

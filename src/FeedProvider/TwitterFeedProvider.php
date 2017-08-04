@@ -25,15 +25,16 @@
  */
 namespace RZ\MixedFeed\FeedProvider;
 
-use Illuminate\Cache\Repository;
 use Abraham\TwitterOAuth\TwitterOAuth;
+use Illuminate\Contracts\Cache\Repository;
+use Abraham\TwitterOAuth\TwitterOAuthException;
 use RZ\MixedFeed\Exception\CredentialsException;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
- * Get a Twitter tweets abstract feed.
+ * Implements a basic Twitter feed provider.
  */
-class TwitterFeedProvider extends AbstractFeedProvider
+abstract class TwitterFeedProvider extends AbstractFeedProvider
 {
     const TIME_KEY = 'created_at';
 
@@ -43,16 +44,20 @@ class TwitterFeedProvider extends AbstractFeedProvider
 
     /**
      *
-     * @param string             $consumerKey
-     * @param string             $consumerSecret
-     * @param string             $accessToken
-     * @param string             $accessTokenSecret
+     * @param string          $consumerKey
+     * @param string          $consumerSecret
+     * @param string          $accessToken
+     * @param string          $accessTokenSecret
+     * @param Repository|null $cacheProvider
+     * @param callable|null   $callback
      */
     public function __construct(
         $consumerKey,
         $consumerSecret,
         $accessToken, 
-        $accessTokenSecret
+        $accessTokenSecret,
+        Repository $cacheProvider = null,
+        $callback = null
     ) {
         if (null === $consumerKey ||
             false === $consumerKey ||
@@ -84,6 +89,49 @@ class TwitterFeedProvider extends AbstractFeedProvider
             $accessToken,
             $accessTokenSecret
         );
+
+        $this->cacheProvider = $cacheProvider;
+        $this->callback = $callback;
+    }
+
+    protected function getFeed($count = 5)
+    {
+        try {
+            // cache key
+            $cacheKey = $this->buildCacheKey($count);
+
+            // do we have this data in the cache ?
+            if ($data = $this->fetchFromCache($cacheKey)) {
+                return $data;
+            }
+            
+            // the endpoint
+            $endpoint = $this->getEndpoint();
+
+            // query parameters
+            $params = $this->buildRequestData($count);
+
+            // call the api and get response
+            $body = $this->twitterConnection->get($endpoint, $params);
+
+            // did the call return with an error ?
+            if ($this->twitterConnection->getLastHttpCode() !== 200) {
+                return $body;
+            }
+
+            // extract response data
+            $data = $this->getResponseData($body);
+
+            // put this data in the cache
+            $this->saveToCache($cacheKey, $data);
+
+            // return data
+            return $data;
+        } catch (TwitterOAuthException $e) {
+            return [
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     /**
@@ -196,6 +244,272 @@ class TwitterFeedProvider extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
+    // public function getCanonicalMedia($item)
+    // {
+    //     /*
+    //     $medias = [];
+        
+    //     if (isset($item->entities->media) 
+    //         && is_array($item->entities->media)) {
+
+    //         foreach($item->entities->media as $media) { 
+
+    //             $id = '';
+    //             if (isset($media->id_str)) {
+    //                 $id = $media->id_str;
+    //             }
+
+    //             $type = '';
+    //             if (isset($media->type)) {
+    //                 $type = $media->type;
+    //             }
+
+    //             $variants = [];
+    //             switch ($type) {
+    //                 case 'photo':
+    //                     if (isset($media->media_url) 
+    //                         && isset($media->sizes)) {
+    //                         $sizes = array_keys((array)$media->sizes);
+    //                         foreach ($sizes as $size) {
+    //                             $variants[] = [
+    //                                 'name' => $size,
+    //                                 'url' => "{$media->media_url}:{$size}",
+    //                                 'size' => [
+    //                                     isset($media->sizes->{$size}->h) ? $media->sizes->{$size}->h : 0,
+    //                                     isset($media->sizes->{$size}->w) ? $media->sizes->{$size}->w : 0,
+    //                                 ],
+    //                             ];
+    //                         }
+    //                     }
+    //                     break;
+
+    //                 default:
+    //                     break;
+    //             }
+
+    //             $medias[] = [
+    //                 'id' => $id,
+    //                 'type' => $type,
+    //                 'variants' => $variants,
+    //             ];
+    //         }                    
+
+    //     }
+        
+    //     if (isset($item->extended_entities->media)
+    //         && is_array($item->extended_entities->media)) {
+
+    //         foreach ($item->extended_entities->media as $media) {
+
+    //             $id = '';
+    //             if (isset($media->id_str)) {
+    //                 $id = $media->id_str;
+    //             }
+
+    //             $type = '';
+    //             if (isset($media->type)) {
+    //                 $type = $media->type;
+    //             }
+
+    //             $variants = [];
+
+    //             switch ($type) {
+    //                 case 'video':
+    //                     if (isset($media->video_info->variants)
+    //                         && is_array($media->video_info->variants)) {
+    //                         foreach ($media->video_info->variants as $variant) {
+    //                             $variants[] = [
+    //                                 'name' => '',
+    //                                 'url' => isset($variant->url) ? $variant->url : '',
+    //                                 'bitrate' => isset($variant->bitrate) ? $variant->bitrate : '',
+    //                             ];
+    //                         }
+    //                     }
+    //                     break;
+
+    //                 default:
+    //                     break;
+    //             }
+
+    //             $medias[] = [
+    //                 'id' => $id,
+    //                 'type' => $type,
+    //                 'variants' => $variants,
+    //             ];
+                
+    //         }
+
+    //     }
+    //     */
+
+    //     $medias = [];
+
+    //     if (isset($item->entities->media) 
+    //         && is_array($item->entities->media)) {
+
+    //         foreach($item->entities->media as $media) { 
+
+    //             $id = '';
+    //             if (isset($media->id_str)) {
+    //                 $id = $media->id_str;
+    //             }
+
+    //             $type = '';
+    //             if (isset($media->type)) {
+    //                 $type = $media->type;
+    //             }
+
+    //             $variants = [];
+    //             switch ($type) {
+    //                 case 'photo':
+    //                     if (isset($media->media_url) 
+    //                         && isset($media->sizes)) {
+    //                         $sizes = array_keys((array)$media->sizes);
+    //                         foreach ($sizes as $size) {
+    //                             $variants[] = [
+    //                                 'type' => $type,
+    //                                 'name' => $size,
+    //                                 'url' => "{$media->media_url}:{$size}",
+    //                                 'size' => [
+    //                                     isset($media->sizes->{$size}->h) ? $media->sizes->{$size}->h : 0,
+    //                                     isset($media->sizes->{$size}->w) ? $media->sizes->{$size}->w : 0,
+    //                                 ],
+    //                             ];
+    //                         }
+    //                     }
+    //                     break;
+
+    //                 default:
+    //                     break;
+    //             }
+
+    //             $medias[] = [
+    //                 'id' => $id,
+    //                 // 'type' => $type,
+    //                 'variants' => $variants,
+    //             ];
+    //         }                    
+
+    //     }
+
+    //     foreach ($medias as $key => $value) {
+            
+    //         if (isset($item->extended_entities->media)
+    //             && is_array($item->extended_entities->media)) {
+
+    //             foreach ($item->extended_entities->media as $media) {
+
+    //                 if ($value['id'] == $media->id) {
+
+    //                     $videos = [];
+
+    //                     if (isset($media->type) 
+    //                         && $media->type == 'video') {
+
+    //                         if (isset($media->video_info->variants)
+    //                             && is_array($media->video_info->variants)) {
+
+    //                             foreach ($media->video_info->variants as $variant) {
+    //                                 $videos[] = [
+    //                                     'type' => 'video',
+    //                                     // 'name' => '',
+    //                                     'url' => isset($variant->url) ? $variant->url : '',
+    //                                     // 'size' => [],
+    //                                     'bitrate' => isset($variant->bitrate) ? $variant->bitrate : '',
+    //                                     // 'content_type' => isset($variant->content_type) ? $variant->content_type : '',
+    //                                 ];
+    //                             }
+
+    //                         }
+
+    //                     }
+
+    //                     foreach ($videos as $video) {
+    //                         $medias[$key]['variants'][] = $video;
+    //                     }
+
+    //                 }
+
+    //             }
+
+    //         }
+
+    //     }
+
+    //     return $medias;
+    // }
+
+    public function getCanonicalMedia($item)
+    {
+        $medias = [];
+
+        // photos
+
+        if (isset($item->entities->media) 
+            && is_array($item->entities->media)) {
+
+            foreach($item->entities->media as $media) { 
+
+                if (isset($media->type) 
+                    && $media->type == 'photo') {
+
+                    if (isset($media->media_url) 
+                        && isset($media->sizes)) {
+
+                        $sizes = array_keys((array)$media->sizes);
+
+                        foreach ($sizes as $size) {
+                            $medias['images'][] = [
+                                'name' => $size,
+                                'url' => "{$media->media_url}:{$size}",
+                                'size' => [
+                                    isset($media->sizes->{$size}->h) ? $media->sizes->{$size}->h : 0,
+                                    isset($media->sizes->{$size}->w) ? $media->sizes->{$size}->w : 0,
+                                ],
+                            ];
+                        }
+
+                    }
+
+                }
+
+            }                    
+
+        }
+
+        // videos
+
+        if (isset($item->extended_entities->media)
+            && is_array($item->extended_entities->media)) {
+
+            foreach ($item->extended_entities->media as $media) {
+
+                if (isset($media->type) 
+                    && $media->type == 'video') {
+
+                    if (isset($media->video_info->variants)
+                        && is_array($media->video_info->variants)) {
+
+                        foreach ($media->video_info->variants as $variant) {
+                            $medias['videos'][] = [
+                                'url' => isset($variant->url) ? $variant->url : '',
+                            ];
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        return $medias;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getCanonicalId($item)
     {
         return isset($item->id_str) ? $item->id_str : '';
@@ -208,4 +522,38 @@ class TwitterFeedProvider extends AbstractFeedProvider
     {
         return isset($item->source) ? strip_tags($item->source) : '';
     }
+
+    /**
+     * Gets the endpoint that should be called.
+     *
+     * @return string
+     */
+    abstract protected function getEndpoint();
+
+    /**
+     * Builds the cache key for this feed.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return string
+     */
+    abstract protected function buildCacheKey($count);
+
+    /**
+     * Builds the request data.
+     *
+     * @param integer $count number of items to fetch
+     *
+     * @return mixed
+     */
+    abstract protected function buildRequestData($count);
+
+    /**
+     * Gets the endpoint that should be called.
+     *
+     * @param  mixed $body
+     *
+     * @return mixed
+     */
+    abstract protected function getResponseData($body);
 }

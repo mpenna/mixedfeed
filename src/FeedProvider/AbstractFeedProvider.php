@@ -25,7 +25,7 @@
  */
 namespace RZ\MixedFeed\FeedProvider;
 
-use RZ\MixedFeed\FeedProviderInterface;
+use RZ\MixedFeed\Contracts\FeedProviderInterface;
 use RZ\MixedFeed\Exception\FeedProviderErrorException;
 
 /**
@@ -61,9 +61,12 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
                     $nItem->canonical_id = $this->getCanonicalId($item);
                     $nItem->canonical_app = $this->getCanonicalApp($item);
                     $nItem->canonical_message = $this->getCanonicalMessage($item);
+                    $nItem->canonical_media = $this->getCanonicalMedia($item);
                     $nItem->normalized_date = $this->getDateTime($item);
                     $nItem->original_data = $item;
                     
+                    // \Log::info('abstractFeedProvider', [$nItem]);
+
                     // append normalized item to list
                     $nList[] = $nItem;
                 }

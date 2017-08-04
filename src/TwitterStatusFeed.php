@@ -25,8 +25,7 @@
  */
 namespace RZ\MixedFeed;
 
-use Illuminate\Cache\Repository;
-use Abraham\TwitterOAuth\TwitterOAuthException;
+use Illuminate\Contracts\Cache\Repository;
 use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
 
 /**
@@ -34,23 +33,21 @@ use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
  */
 class TwitterStatusFeed extends TwitterFeedProvider
 {
-    const TIME_KEY = 'created_at';
-
     protected $userId;
     protected $excludeReplies;
     protected $includeRts;
 
     /**
      *
-     * @param string             $userId
-     * @param string             $consumerKey
-     * @param string             $consumerSecret
-     * @param string             $accessToken
-     * @param string             $accessTokenSecret
-     * @param CacheProvider|null $cacheProvider
-     * @param boolean            $excludeReplies
-     * @param boolean            $includeRts
-     * @param callable           $callback
+     * @param string          $userId
+     * @param string          $consumerKey
+     * @param string          $consumerSecret
+     * @param string          $accessToken
+     * @param string          $accessTokenSecret
+     * @param Repository|null $cacheProvider
+     * @param boolean         $excludeReplies
+     * @param boolean         $includeRts
+     * @param callable|null   $callback
      */
     public function __construct(
         $userId,
@@ -67,50 +64,14 @@ class TwitterStatusFeed extends TwitterFeedProvider
             $consumerKey,
             $consumerSecret,
             $accessToken,
-            $accessTokenSecret
+            $accessTokenSecret,
+            $cacheProvider,
+            $callback
         );
 
         $this->userId = $userId;
-        $this->cacheProvider = $cacheProvider;
         $this->excludeReplies = $excludeReplies;
         $this->includeRts = $includeRts;
-        $this->callback = $callback;
-    }
-
-    protected function getFeed($count = 5)
-    {
-        try {
-            // cache key
-            $cacheKey = $this->buildCacheKey($count);
-
-            // do we have this data in the cache ?
-            if ($data = $this->fetchFromCache($cacheKey)) {
-                return $data;
-            }
-            
-            // the endpoint
-            $endpoint = 'statuses/user_timeline';
-
-            // query parameters
-            $params = $this->buildRequestData($count);
-
-            // call the api and get response
-            $body = $this->twitterConnection->get($endpoint, $params);
-
-            // did the call return with an error ?
-            if ($this->twitterConnection->getLastHttpCode() !== 200) {
-                return $body;
-            }
-
-            // put this data in the cache
-            $this->saveToCache($cacheKey, $body);
-
-            return $body;
-        } catch (TwitterOAuthException $e) {
-            return [
-                'error' => $e->getMessage(),
-            ];
-        }
     }
 
     /**
@@ -122,13 +83,17 @@ class TwitterStatusFeed extends TwitterFeedProvider
     }
 
     /**
-     * Builds the cache key for this feed.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return string
+     * {@inheritdoc}
      */
-    private function buildCacheKey($count)
+    protected function getEndpoint()
+    {
+        return 'statuses/user_timeline';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
         
@@ -142,13 +107,9 @@ class TwitterStatusFeed extends TwitterFeedProvider
     }
 
     /**
-     * Builds the request data.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return mixed
+     * {@inheritdoc}
      */
-    private function buildRequestData($count)
+    protected function buildRequestData($count)
     {
         // query parameters
         $params = [
@@ -171,5 +132,13 @@ class TwitterStatusFeed extends TwitterFeedProvider
         }
 
         return $params;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getResponseData($body)
+    {
+        return $body;
     }
 }

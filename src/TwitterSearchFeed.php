@@ -25,8 +25,7 @@
  */
 namespace RZ\MixedFeed;
 
-use Illuminate\Cache\Repository;
-use Abraham\TwitterOAuth\TwitterOAuthException;
+use Illuminate\Contracts\Cache\Repository;
 use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
 
 /**
@@ -34,18 +33,17 @@ use RZ\MixedFeed\FeedProvider\TwitterFeedProvider;
  */
 class TwitterSearchFeed extends TwitterFeedProvider
 {
-    const TIME_KEY = 'created_at';
-
     protected $queryParams;
 
     /**
      *
-     * @param array              $queryParams
-     * @param string             $consumerKey
-     * @param string             $consumerSecret
-     * @param string             $accessToken
-     * @param string             $accessTokenSecret
-     * @param CacheProvider|null $cacheProvider
+     * @param array           $queryParams
+     * @param string          $consumerKey
+     * @param string          $consumerSecret
+     * @param string          $accessToken
+     * @param string          $accessTokenSecret
+     * @param Repository|null $cacheProvider
+     * @param callable|null   $callback
      */
     public function __construct(
         array $queryParams,
@@ -60,48 +58,12 @@ class TwitterSearchFeed extends TwitterFeedProvider
             $consumerKey,
             $consumerSecret,
             $accessToken,
-            $accessTokenSecret
+            $accessTokenSecret,
+            $cacheProvider,
+            $callback
         );
 
         $this->queryParams = array_filter($queryParams);
-        $this->cacheProvider = $cacheProvider;
-        $this->callback = $callback;
-    }
-
-    protected function getFeed($count = 5)
-    {
-        try {
-            // cache key
-            $cacheKey = $this->buildCacheKey($count);
-
-            // do we have this data in the cache ?
-            if ($data = $this->fetchFromCache($cacheKey)) {
-                return $data;
-            }
-
-            // the endpoint
-            $endpoint = 'search/tweets';
-
-            // query parameters
-            $params = $this->buildRequestData($count);
-
-            // call the api and get response
-            $body = $this->twitterConnection->get($endpoint, $params);
-
-            // did the call return with an error ?
-            if ($this->twitterConnection->getLastHttpCode() !== 200) {
-                return $body;
-            }
-
-            // put this data in the cache
-            $this->saveToCache($cacheKey, $body->statuses);
-
-            return $body->statuses;
-        } catch (TwitterOAuthException $e) {
-            return [
-                'error' => $e->getMessage(),
-            ];
-        }
     }
 
     /**
@@ -113,13 +75,17 @@ class TwitterSearchFeed extends TwitterFeedProvider
     }
 
     /**
-     * Builds the cache key for this feed.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return string
+     * {@inheritdoc}
      */
-    private function buildCacheKey($count)
+    protected function getEndpoint()
+    {
+        return 'search/tweets';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
         
@@ -131,19 +97,17 @@ class TwitterSearchFeed extends TwitterFeedProvider
 
         return "{$prefix}:{$query}:{$count}";
     }
+
     /**
-     * Builds the request data.
-     *
-     * @param integer $count number of items to fetch
-     *
-     * @return mixed
+     * {@inheritdoc}
      */
-    private function buildRequestData($count)
+    protected function buildRequestData($count)
     {
         // query parameters
         $params = [
             'q' => $this->formatQueryParams(),
             'count' => $count,
+            'include_entities' => true,
         ];
 
         // filter by id range: since_id
@@ -162,11 +126,22 @@ class TwitterSearchFeed extends TwitterFeedProvider
     }
 
     /**
+     * {@inheritdoc}
+     */
+    protected function getResponseData($body)
+    {
+        return $body->statuses;
+    }
+
+    /**
+     * Format the query parameters according to Twitter's API.
+     *
      * @return string
      */
     private function formatQueryParams()
     {
         $inlineParams = [];
+
         foreach ($this->queryParams as $key => $value) {
             if (is_numeric($key)) {
                 $inlineParams[] = $value;
