@@ -273,7 +273,9 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
 
     public function getCanonicalMedia($item)
     {
-        $medias = [];
+        $medias = new \stdClass;        
+        $photos = [];
+        $videos = [];
 
         // photos
 
@@ -285,7 +287,7 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
             });
 
             foreach ($images as $image) {
-                $medias['images'][] = [
+                $photos[] = [
                     'url' => $image->media->image->src,
                     'size' => [
                         $image->media->image->height,
@@ -299,11 +301,13 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
         // videos
 
         if (isset($item->source)) {
-
-            $medias['videos'][] = [
+            $videos[] = [
                 'url' => $item->source,
             ];
         }
+
+        $medias->images = $photos;
+        $medias->videos = $videos;
 
         return $medias;
     }

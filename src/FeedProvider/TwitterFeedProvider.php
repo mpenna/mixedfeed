@@ -441,7 +441,9 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
     public function getCanonicalMedia($item)
     {
-        $medias = [];
+        $medias = new \stdClass;        
+        $photos = [];
+        $videos = [];
 
         // photos
 
@@ -459,7 +461,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
                         $sizes = array_keys((array)$media->sizes);
 
                         foreach ($sizes as $size) {
-                            $medias['images'][] = [
+                            $photos[] = [
                                 'name' => $size,
                                 'url' => "{$media->media_url}:{$size}",
                                 'size' => [
@@ -491,7 +493,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
                         && is_array($media->video_info->variants)) {
 
                         foreach ($media->video_info->variants as $variant) {
-                            $medias['videos'][] = [
+                            $videos[] = [
                                 'url' => isset($variant->url) ? $variant->url : '',
                             ];
                         }
@@ -504,6 +506,9 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
         }
 
+        $medias->images = $photos;
+        $medias->videos = $videos;
+        
         return $medias;
     }
 
