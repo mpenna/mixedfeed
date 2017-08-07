@@ -73,6 +73,14 @@ class FacebookPageFeed extends FacebookFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function filterOutItem($item)
+    {
+        return false;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function getEndpoint()
     {
         return 'https://graph.facebook.com/' . $this->pageId . '/posts';

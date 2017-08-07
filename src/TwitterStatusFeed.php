@@ -85,6 +85,14 @@ class TwitterStatusFeed extends TwitterFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function filterOutItem($item)
+    {
+        return false;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function getEndpoint()
     {
         return 'statuses/user_timeline';

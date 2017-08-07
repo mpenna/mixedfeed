@@ -63,13 +63,6 @@ interface FeedProviderInterface
     public function getDateTime($item);
 
     /**
-     * Get errors details.
-     *
-     * @return string
-     */
-    public function getErrors($feed);
-
-    /**
      * Get a canonical message from current feed item.
      *
      * @param  stdClass $item
@@ -102,10 +95,24 @@ interface FeedProviderInterface
     public function getCanonicalApp($item);
 
     /**
+     * Check if the feed item should be filtered out.
+     *
+     * @return boolean
+     */
+    public function filterOutItem($item);
+
+    /**
      * Check if the feed provider has succeded to
      * contact API.
      *
      * @return boolean
      */
     public function isValid($feed);
+
+    /**
+     * Get errors details.
+     *
+     * @return string
+     */
+    public function getErrors($feed);
 }

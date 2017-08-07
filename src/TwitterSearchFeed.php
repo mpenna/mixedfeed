@@ -77,6 +77,14 @@ class TwitterSearchFeed extends TwitterFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function filterOutItem($item)
+    {
+        return isset($item->retweeted_status);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function getEndpoint()
     {
         return 'search/tweets';

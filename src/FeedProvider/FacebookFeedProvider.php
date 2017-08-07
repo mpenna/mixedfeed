@@ -216,61 +216,6 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
         return isset($item->message) ? $item->message : '';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    // public function getCanonicalMedia($item)
-    // {
-    //     $medias = [];
-
-    //     if (isset($item->attachments->data) 
-    //         && is_array($item->attachments->data)) {
-
-    //         $imageItems = array_filter($item->attachments->data, function($obj) {
-    //             return isset($obj->media->image);
-    //         });
-
-    //         foreach ($imageItems as $imageItem) {
-    //             // \Log::info('getCanonicalMedia', [$imageItem]);
-    //             $medias[] = [
-    //                 'id' => '',
-    //                 'variants' => [
-    //                     'type' => 'image',
-    //                     // 'name' => '',
-    //                     'url' => $imageItem->media->image->src,
-    //                     'size' => [
-    //                         $imageItem->media->image->height,
-    //                         $imageItem->media->image->width,
-    //                     ]
-    //                 ]
-    //             ];
-    //         }
-
-    //     }
-
-    //     $videos = [];
-
-    //     if (isset($item->source)) {
-
-    //         $videos[] = [
-    //             'type' => 'video',
-    //             // 'name' => '',
-    //             'url' => $item->source,
-    //             // 'size' => [],
-    //             'bitrate' => null,
-    //             // 'content_type' => isset($variant->content_type) ? $variant->content_type : '',
-    //         ];
-
-    //         foreach ($videos as $video) {
-    //             // $medias[$key]['variants'][] = $video;
-    //             // $medias['videos'][] = $video;
-    //             $medias['videos'][] = $video;
-    //         }
-    //     }
-
-    //     return $medias;
-    // }
-
     public function getCanonicalMedia($item)
     {
         $medias = new \stdClass;        

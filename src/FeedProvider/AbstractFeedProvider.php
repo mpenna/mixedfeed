@@ -55,6 +55,11 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
                 if (is_object($item)) {
                     $nItem = new \stdClass;
 
+                    // check if item is to be included in the normalized list
+                    if ($this->filterOutItem($item)) {
+                        continue;
+                    }
+
                     // inject dynamic attributes that will allow merging feed items of different types
                     $nItem->feed_item_provider = $this->getFeedProvider();
                     $nItem->feed_item_platform = $this->getFeedPlatform();
@@ -64,8 +69,6 @@ abstract class AbstractFeedProvider implements FeedProviderInterface
                     $nItem->canonical_media = $this->getCanonicalMedia($item);
                     $nItem->normalized_date = $this->getDateTime($item);
                     $nItem->original_data = $item;
-                    
-                    // \Log::info('abstractFeedProvider', [$nItem]);
 
                     // append normalized item to list
                     $nList[] = $nItem;

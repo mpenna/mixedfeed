@@ -185,6 +185,14 @@ class MixedFeed extends AbstractFeedProvider
     /**
      * {@inheritdoc}
      */
+    public function filterOutItem($item)
+    {
+        return false;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function isValid($feed)
     {
         return true;
