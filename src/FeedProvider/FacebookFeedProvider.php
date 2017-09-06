@@ -25,8 +25,8 @@
  */
 namespace RZ\MixedFeed\FeedProvider;
 
+use Exception;
 use GuzzleHttp\Client as GuzzleClient;
-use GuzzleHttp\Exception\ClientException;
 use Illuminate\Contracts\Cache\Repository;
 use RZ\MixedFeed\Exception\CredentialsException;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
@@ -82,14 +82,14 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
             if ($data = $this->fetchFromCache($cacheKey)) {
                 return $data;
             }
-              
+
             // http client
             // $client = new \GuzzleHttp\Client();
             $client = new GuzzleClient();
 
             // the endpoint
             $endpoint = $this->getEndpoint();
-            
+
             // query parameters
             $params = $this->buildRequestData($count);
 
@@ -109,9 +109,9 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $data);
-             
+
             return $data;
-        } catch (ClientException $e) {
+        } catch (Exception $e) {
             return [
                 'error' => $e->getMessage(),
             ];
@@ -223,7 +223,7 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
     // {
     //     $medias = [];
 
-    //     if (isset($item->attachments->data) 
+    //     if (isset($item->attachments->data)
     //         && is_array($item->attachments->data)) {
 
     //         $imageItems = array_filter($item->attachments->data, function($obj) {
@@ -273,13 +273,13 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
 
     public function getCanonicalMedia($item)
     {
-        $medias = new \stdClass;        
+        $medias = new \stdClass;
         $photos = [];
         $videos = [];
 
         // photos
 
-        if (isset($item->attachments->data) 
+        if (isset($item->attachments->data)
             && is_array($item->attachments->data)) {
 
             $images = array_filter($item->attachments->data, function($obj) {
