@@ -54,7 +54,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
     public function __construct(
         $consumerKey,
         $consumerSecret,
-        $accessToken, 
+        $accessToken,
         $accessTokenSecret,
         Repository $cacheProvider = null,
         $callback = null
@@ -71,17 +71,17 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
             throw new CredentialsException("TwitterFeed needs a valid consumer secret.", 1);
         }
 
-        if (null === $accessToken ||
-            false === $accessToken ||
-            empty($accessToken)) {
-            throw new CredentialsException("TwitterFeed needs a valid access token.", 1);
-        }
+        // if (null === $accessToken ||
+        //     false === $accessToken ||
+        //     empty($accessToken)) {
+        //     throw new CredentialsException("TwitterFeed needs a valid access token.", 1);
+        // }
 
-        if (null === $accessTokenSecret ||
-            false === $accessTokenSecret ||
-            empty($accessTokenSecret)) {
-            throw new CredentialsException("TwitterFeed needs a valid access token secret.", 1);
-        }
+        // if (null === $accessTokenSecret ||
+        //     false === $accessTokenSecret ||
+        //     empty($accessTokenSecret)) {
+        //     throw new CredentialsException("TwitterFeed needs a valid access token secret.", 1);
+        // }
 
         $this->twitterConnection = new TwitterOAuth(
             $consumerKey,
@@ -104,7 +104,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
             if ($data = $this->fetchFromCache($cacheKey)) {
                 return $data;
             }
-            
+
             // the endpoint
             $endpoint = $this->getEndpoint();
 
@@ -243,21 +243,21 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
     public function getCanonicalMedia($item)
     {
-        $medias = new \stdClass;        
+        $medias = new \stdClass;
         $photos = [];
         $videos = [];
 
         // photos
 
-        if (isset($item->entities->media) 
+        if (isset($item->entities->media)
             && is_array($item->entities->media)) {
 
-            foreach($item->entities->media as $media) { 
+            foreach($item->entities->media as $media) {
 
-                if (isset($media->type) 
+                if (isset($media->type)
                     && $media->type == 'photo') {
 
-                    if (isset($media->media_url) 
+                    if (isset($media->media_url)
                         && isset($media->sizes)) {
 
                         $sizes = array_keys((array)$media->sizes);
@@ -277,7 +277,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
                 }
 
-            }                    
+            }
 
         }
 
@@ -288,7 +288,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
             foreach ($item->extended_entities->media as $media) {
 
-                if (isset($media->type) 
+                if (isset($media->type)
                     && $media->type == 'video') {
 
                     if (isset($media->video_info->variants)
@@ -310,7 +310,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
         $medias->images = $photos;
         $medias->videos = $videos;
-        
+
         return $medias;
     }
 

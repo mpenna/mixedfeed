@@ -92,11 +92,11 @@ class FacebookPageFeed extends FacebookFeedProvider
     protected function buildCacheKey($count)
     {
         $platform = $this->getFeedPlatform();
-        
+
         $prefix = "{$this->getFeedProvider()}" . (
             !empty($platform) ? ":{$platform}" : ""
         );
-        
+
         $page = $this->pageId;
 
         return "{$prefix}:{$page}:{$count}";
@@ -121,7 +121,7 @@ class FacebookPageFeed extends FacebookFeedProvider
             $this->since instanceof \Datetime) {
             $params['query']['since'] = $this->since->getTimestamp();
         }
-        
+
         // filter by date range: until
         if ($this->until !== null &&
             $this->until instanceof \Datetime) {
@@ -137,5 +137,79 @@ class FacebookPageFeed extends FacebookFeedProvider
     protected function getResponseData($body)
     {
         return $body->data;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalMessage($item)
+    {
+        return isset($item->message)
+            ? $item->message
+            : (isset($item->story)
+                ? $item->story
+                : '');
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalMedia($item)
+    {
+        $medias = new \stdClass;
+        $photos = [];
+        $videos = [];
+
+        // photos
+
+        if (isset($item->attachments->data)
+            && is_array($item->attachments->data)) {
+
+            $images = array_filter($item->attachments->data, function($obj) {
+                return isset($obj->media->image);
+            });
+
+            foreach ($images as $image) {
+                $photos[] = [
+                    'url' => $image->media->image->src,
+                    'size' => [
+                        $image->media->image->height,
+                        $image->media->image->width,
+                    ]
+                ];
+            }
+
+        } else if (isset($item->full_picture)
+                    && is_string($item->full_picture)) {
+
+            $photos[] = [
+                'url' => $item->full_picture,
+                'size' => [
+                    //
+                ]
+            ];
+
+        }
+
+        // videos
+
+        if (isset($item->source)) {
+            $videos[] = [
+                'url' => $item->source,
+            ];
+        }
+
+        $medias->images = $photos;
+        $medias->videos = $videos;
+
+        return $medias;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCanonicalApp($item)
+    {
+        return isset($item->from->id) ? $item->from->id : '';
     }
 }
