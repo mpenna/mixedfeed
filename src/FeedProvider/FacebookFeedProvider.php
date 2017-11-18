@@ -64,11 +64,7 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
 
         $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
-
-        // $this->fields = ['application', 'link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
-        $this->fields = ['application', 'created_time', 'full_picture', 'link', 'message', 'picture', 'source', 'status_type', 'story', 'type'];
-        $this->fields = array_unique(array_merge($this->fields, $fields));
-
+        $this->fields = $this->mergeFields($fields);
         $this->callback = $callback;
     }
 
@@ -84,7 +80,6 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
             }
 
             // http client
-            // $client = new \GuzzleHttp\Client();
             $client = new GuzzleClient();
 
             // the endpoint
@@ -307,4 +302,21 @@ abstract class FacebookFeedProvider extends AbstractFeedProvider
      */
     abstract protected function getResponseData($body);
 
+    private function mergeFields($fields)
+    {
+        $defaultFields = [
+            'application',
+            'created_time',
+            'full_picture',
+            'link',
+            'message',
+            'picture',
+            'source',
+            'status_type',
+            'story',
+            'type'
+        ];
+
+        return array_unique(array_merge($defaultFields, $fields));
+    }
 }

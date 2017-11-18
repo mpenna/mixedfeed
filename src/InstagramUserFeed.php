@@ -20,42 +20,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @file FacebookUserFeed.php
+ * @file InstagramFeed.php
  * @author Ambroise Maupate
  */
 namespace RZ\MixedFeed;
 
-use Illuminate\Contracts\Cache\Repository;
-use RZ\MixedFeed\FeedProvider\FacebookFeedProvider;
+use Illuminate\Cache\Repository;
+use RZ\MixedFeed\FeedProvider\InstagramFeedProvider;
 
 /**
- * Get a Facebook user timeline feed using an Access Token.
- *
- * https://developers.facebook.com/docs/facebook-login/access-tokens
+ * Get an Instagram user feed.
  */
-class FacebookUserFeed extends FacebookFeedProvider
+class InstagramUserFeed extends InstagramFeedProvider
 {
     protected $userId;
 
     /**
      *
      * @param string          $userId
-     * @param string          $accessToken User Access Token
+     * @param string          $accessToken Access Token
      * @param Repository|null $cacheProvider
-     * @param array           $fields
      * @param callable|null   $callback
      */
     public function __construct(
         $userId,
         $accessToken,
         Repository $cacheProvider = null,
-        array $fields = [],
         $callback = null
     ) {
         parent::__construct(
             $accessToken,
             $cacheProvider,
-            $fields,
             $callback
         );
 
@@ -83,7 +78,7 @@ class FacebookUserFeed extends FacebookFeedProvider
      */
     protected function getEndpoint()
     {
-        return 'https://graph.facebook.com/' . $this->userId . '/posts';
+        return 'https://api.instagram.com/v1/users/' . $this->userId . '/media/recent';
     }
 
     /**
@@ -111,21 +106,18 @@ class FacebookUserFeed extends FacebookFeedProvider
         $params = [
             'query' => [
                 'access_token' => $this->accessToken,
-                'limit' => $count,
-                'fields' => implode(',', $this->fields),
+                'count' => $count,
             ],
         ];
 
-        // filter by date range: since
-        if ($this->since !== null &&
-            $this->since instanceof \Datetime) {
-            $params['query']['since'] = $this->since->getTimestamp();
+        // filter by id range: minId
+        if ($this->minId !== null) {
+            $params['query']['min_id'] = $this->minId;
         }
 
-        // filter by date range: until
-        if ($this->until !== null &&
-            $this->until instanceof \Datetime) {
-            $params['query']['until'] = $this->until->getTimestamp();
+        // filter by id range: maxId
+        if ($this->maxId !== null) {
+            $params['query']['max_id'] = $this->maxId;
         }
 
         return $params;

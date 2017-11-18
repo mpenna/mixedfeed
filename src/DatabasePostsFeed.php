@@ -39,7 +39,7 @@ use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 class DatabasePostsFeed extends AbstractFeedProvider
 {
     const TIME_KEY = 'created_at';
-    
+
     protected $userId;
     protected $postIds;
     protected $db;
@@ -70,7 +70,7 @@ class DatabasePostsFeed extends AbstractFeedProvider
         $this->cacheProvider = $cacheProvider;
 
         $this->db = \DB::connection('mysql_api');
-        
+
         // $this->fields = ['link', 'picture', 'full_picture', 'message', 'story', 'type', 'created_time', 'source', 'status_type'];
         // $this->fields = array_unique(array_merge($this->fields, $fields));
 
@@ -109,19 +109,17 @@ class DatabasePostsFeed extends AbstractFeedProvider
 
             // foreach ($postIds as $postId) {
             foreach ($this->postIds as $postId) {
-                
+
                 // cache key for the post
                 // $cacheKey = "post:{$postId}";
                 $cacheKey = $this->buildCacheKey($postId);
-                
+
                 // do we have this data in the cache ?
                 if ($data = $this->fetchFromCache($cacheKey)) {
-                    \Log::info('DatabasePostsFeed : fetching from cache', [$cacheKey]);
                     $list[] = $data;
                     continue;
                 }
 
-                \Log::info('DatabasePostsFeed : fetching from provider', [$cacheKey]);
                 // get data from the provider
                 $post = $this->db->table('posts')
                     ->select('uuid', 'where', 'what', 'url', 'data', 'created_at')
@@ -142,53 +140,6 @@ class DatabasePostsFeed extends AbstractFeedProvider
         }
     }
 
-    // protected function getFeed($count = 5)
-    // {
-    //     try {
-
-    //         // get post keys from user timeline
-    //         $postIds = $this->db->table('timelines')
-    //             ->select('post_id')
-    //             ->where('user_id', '=', $this->userId)
-    //             ->orderBy('created_at', 'desc')
-    //             ->pluck('post_id')
-    //             ->all();
-
-    //         $list = [];
-
-    //         foreach ($postIds as $postId) {
-                
-    //             // cache key for the post
-    //             $cacheKey = "post:{$postId}";
-                
-    //             // do we have this data in the cache ?
-    //             if ($data = $this->fetchFromCache($cacheKey)) {
-    //                 \Log::info('DatabasePostsFeed : fetching from cache', [$cacheKey]);
-    //                 $list[] = $data;
-    //                 continue;
-    //             }
-
-    //             \Log::info('DatabasePostsFeed : fetching from provider', [$cacheKey]);
-    //             // get post data from the database
-    //             $post = $this->db->table('posts')
-    //                 ->select('where', 'what', 'url', 'data', 'created_at')
-    //                 ->where('id', '=', $postId)
-    //                 ->first();
-
-    //             // put post data in the cache
-    //             $this->saveToCache($cacheKey, $post);
-
-    //             $list[] = $post;
-    //         }
-
-    //         return $list;
-    //     } catch (ClientException $e) {
-    //         return [
-    //             'error' => $e->getMessage(),
-    //         ];
-    //     }
-    // }
-
     /**
      * {@inheritdoc}
      */
@@ -202,8 +153,6 @@ class DatabasePostsFeed extends AbstractFeedProvider
      */
     public function getDateTime($item)
     {
-        \Log::info('getDateTime', [$item]);
-
         $date = new \DateTime();
         $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
         return $date;
@@ -214,8 +163,6 @@ class DatabasePostsFeed extends AbstractFeedProvider
      */
     public function isValid($feed)
     {
-        \Log::info('isValid', [$feed]);
-
         return null !== $feed && is_array($feed) && !isset($feed['error']);
     }
 
@@ -224,8 +171,6 @@ class DatabasePostsFeed extends AbstractFeedProvider
      */
     public function getErrors($feed)
     {
-        \Log::info('getErrors', [$feed['error']]);
-
         return $feed['error'];
     }
 

@@ -25,59 +25,41 @@
  */
 namespace RZ\MixedFeed\FeedProvider;
 
-use Abraham\TwitterOAuth\TwitterOAuth;
+use Exception;
+use GuzzleHttp\Client as GuzzleClient;
 use Illuminate\Contracts\Cache\Repository;
-use Abraham\TwitterOAuth\TwitterOAuthException;
 use RZ\MixedFeed\Exception\CredentialsException;
 use RZ\MixedFeed\FeedProvider\AbstractFeedProvider;
 
 /**
- * Implements a basic Twitter feed provider.
+ * Implements a basic Instagram feed provider.
  */
-abstract class TwitterFeedProvider extends AbstractFeedProvider
+abstract class InstagramFeedProvider extends AbstractFeedProvider
 {
-    const TIME_KEY = 'created_at';
+    const TIME_KEY = 'created_time';
 
-    protected $sinceId = null;
+    protected $accessToken;
+    protected $minId = null;
     protected $maxId = null;
-    protected $twitterConnection;
 
     /**
      *
-     * @param string          $consumerKey
-     * @param string          $consumerSecret
-     * @param string          $accessToken
-     * @param string          $accessTokenSecret
+     * @param string          $accessToken Access Token
      * @param Repository|null $cacheProvider
      * @param callable|null   $callback
      */
     public function __construct(
-        $consumerKey,
-        $consumerSecret,
         $accessToken,
-        $accessTokenSecret,
         Repository $cacheProvider = null,
         $callback = null
     ) {
-        if (null === $consumerKey ||
-            false === $consumerKey ||
-            empty($consumerKey)) {
-            throw new CredentialsException("TwitterFeed needs a valid consumer key.", 1);
+        if (null === $accessToken ||
+            false === $accessToken ||
+            empty($accessToken)) {
+            throw new CredentialsException("InstagramFeed needs a valid user access token.", 1);
         }
 
-        if (null === $consumerSecret ||
-            false === $consumerSecret ||
-            empty($consumerSecret)) {
-            throw new CredentialsException("TwitterFeed needs a valid consumer secret.", 1);
-        }
-
-        $this->twitterConnection = new TwitterOAuth(
-            $consumerKey,
-            $consumerSecret,
-            $accessToken,
-            $accessTokenSecret
-        );
-
+        $this->accessToken = $accessToken;
         $this->cacheProvider = $cacheProvider;
         $this->callback = $callback;
     }
@@ -93,6 +75,9 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
                 return $data;
             }
 
+            // http client
+            $client = new GuzzleClient();
+
             // the endpoint
             $endpoint = $this->getEndpoint();
 
@@ -100,22 +85,24 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
             $params = $this->buildRequestData($count);
 
             // call the api and get response
-            $body = $this->twitterConnection->get($endpoint, $params);
+            $response = $client->get($endpoint, $params);
+
+            // decode body
+            $body = json_decode($response->getBody());
 
             // did the call return with an error ?
-            if ($this->twitterConnection->getLastHttpCode() !== 200) {
+            if ($response->getStatusCode() !== 200) {
                 return $body;
             }
 
-            // extract response data
+            // extract data from response
             $data = $this->getResponseData($body);
 
             // put this data in the cache
             $this->saveToCache($cacheKey, $data);
 
-            // return data
             return $data;
-        } catch (TwitterOAuthException $e) {
+        } catch (Exception $e) {
             return [
                 'error' => $e->getMessage(),
             ];
@@ -127,7 +114,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function getFeedProvider()
     {
-        return 'twitter';
+        return 'instagram';
     }
 
     /**
@@ -144,7 +131,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
     public function getDateTime($item)
     {
         $date = new \DateTime();
-        $date->setTimestamp(strtotime($item->{self::TIME_KEY}));
+        $date->setTimestamp($item->{self::TIME_KEY});
         return $date;
     }
 
@@ -153,29 +140,29 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function isValid($feed)
     {
-        return null !== $feed && is_array($feed);
+        return null !== $feed && is_array($feed) && !isset($feed['error']);
     }
 
     /**
-     * Gets the value of sinceId.
+     * Gets the value of minId.
      *
-     * @return integer
+     * @return string
      */
-    public function getSinceId()
+    public function getMinId()
     {
-        return $this->sinceId;
+        return $this->minId;
     }
 
     /**
-     * Sets the value of sinceId.
+     * Sets the value of minId.
      *
-     * @param integer $sinceId the since_id
+     * @param string $minId
      *
      * @return self
      */
-    public function setSinceId($sinceId)
+    public function setMinId(string $minId)
     {
-        $this->sinceId = $sinceId;
+        $this->minId = $minId;
 
         return $this;
     }
@@ -183,7 +170,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
     /**
      * Gets the value of maxId.
      *
-     * @return integer
+     * @return string
      */
     public function getMaxId()
     {
@@ -193,11 +180,11 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
     /**
      * Sets the value of maxId.
      *
-     * @param integer $maxId the max_id
+     * @param string $maxId
      *
      * @return self
      */
-    public function setMaxId($maxId)
+    public function setmaxId(string $maxId)
     {
         $this->maxId = $maxId;
 
@@ -209,16 +196,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function getErrors($feed)
     {
-        $errors = "";
-
-        if (null !== $feed && null !== $feed->errors && !empty($feed->errors)) {
-            foreach ($feed->errors as $error) {
-                $errors .= "[" . $error->code . "] ";
-                $errors .= $error->message . PHP_EOL;
-            }
-        }
-
-        return $errors;
+        return $feed['error'];
     }
 
     /**
@@ -226,7 +204,11 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function getCanonicalMessage($item)
     {
-        return $item->text;
+        if (null !== $item->caption) {
+            return $item->caption->text;
+        }
+
+        return '';
     }
 
     public function getCanonicalMedia($item)
@@ -237,63 +219,30 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
 
         // photos
 
-        if (isset($item->entities->media)
-            && is_array($item->entities->media)) {
-
-            foreach($item->entities->media as $media) {
-
-                if (isset($media->type)
-                    && $media->type == 'photo') {
-
-                    if (isset($media->media_url)
-                        && isset($media->sizes)) {
-
-                        $sizes = array_keys((array)$media->sizes);
-
-                        foreach ($sizes as $size) {
-                            $photos[] = [
-                                'name' => $size,
-                                'url' => "{$media->media_url}:{$size}",
-                                'size' => [
-                                    isset($media->sizes->{$size}->h) ? $media->sizes->{$size}->h : 0,
-                                    isset($media->sizes->{$size}->w) ? $media->sizes->{$size}->w : 0,
-                                ],
-                            ];
-                        }
-
-                    }
-
-                }
-
+        if (isset($item->images)) {
+            foreach ($item->images as $key => $image) {
+                $photos[] = [
+                    'url' => $image->url,
+                    'size' => [
+                        $image->height,
+                        $image->width,
+                    ]
+                ];
             }
-
         }
 
         // videos
 
-        if (isset($item->extended_entities->media)
-            && is_array($item->extended_entities->media)) {
-
-            foreach ($item->extended_entities->media as $media) {
-
-                if (isset($media->type)
-                    && $media->type == 'video') {
-
-                    if (isset($media->video_info->variants)
-                        && is_array($media->video_info->variants)) {
-
-                        foreach ($media->video_info->variants as $variant) {
-                            $videos[] = [
-                                'url' => isset($variant->url) ? $variant->url : '',
-                            ];
-                        }
-
-                    }
-
-                }
-
+        if (isset($item->videos)) {
+            foreach ($item->videos as $key => $video) {
+                $videos[] = [
+                    'url' => $video->url,
+                    'size' => [
+                        $video->height,
+                        $video->width,
+                    ]
+                ];
             }
-
         }
 
         $medias->images = $photos;
@@ -307,7 +256,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function getCanonicalId($item)
     {
-        return isset($item->id_str) ? $item->id_str : '';
+        return isset($item->id) ? $item->id : '';
     }
 
     /**
@@ -315,7 +264,7 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      */
     public function getCanonicalApp($item)
     {
-        return isset($item->source) ? strip_tags($item->source) : '';
+        return isset($item->application->id) ? $item->application->id : '';
     }
 
     /**
@@ -351,4 +300,5 @@ abstract class TwitterFeedProvider extends AbstractFeedProvider
      * @return mixed
      */
     abstract protected function getResponseData($body);
+
 }
